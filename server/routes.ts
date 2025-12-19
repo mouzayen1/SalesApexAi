@@ -2,8 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
-import { transcribeAudio, generateChatResponse, generateSpeech, isConfigured } from "./openai";
-import { conversationRequestSchema } from "@shared/schema";
+mport { conversationRequestSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
