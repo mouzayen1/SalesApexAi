@@ -120,12 +120,13 @@ export default function Home() {
       if (filters.bodyStyle && car.body_style !== filters.bodyStyle) return false;
       if (filters.drivetrain && car.drivetrain !== filters.drivetrain) return false;
       if (filters.maxPrice && car.price > filters.maxPrice) return false;
+                if (filters.color && car.color !== filters.color) return false;
+      if (filters.make && car.make !== filters.make) return false;
+
       return true;
     }).length;
 
     const sysMsg = generateSystemMessage(matchCount, filters);
-          if (filters.color && car.color !== filters.color) return false;
-      if (filters.make && car.make !== filters.make) return false;
     setSystemMessage(sysMsg);
 
     // Add system response as assistant message
