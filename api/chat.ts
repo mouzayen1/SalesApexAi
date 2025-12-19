@@ -42,7 +42,7 @@ When customers ask about vehicles, provide helpful information from this invento
     };
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-4o-mini',
       messages: [
         systemMessage,
         ...messages
