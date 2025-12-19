@@ -2,8 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
-mport { conversationRequestSchema } from "@shared/schema";
-
+import { conversationRequestSchema } from "@shared/schema";
 const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(
