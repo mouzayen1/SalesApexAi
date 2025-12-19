@@ -18,6 +18,8 @@ function parseFilters(transcript: string) {
     bodyStyle?: string;
     drivetrain?: string;
     maxPrice?: number;
+        color?: string;
+    make?: string;
   } = {};
 
   // Body style detection
@@ -38,6 +40,20 @@ function parseFilters(transcript: string) {
     const num = parseInt(priceMatch[1]);
     filters.maxPrice = priceMatch[0].includes("k") ? num * 1000 : num;
   }
+
+    // Color detection
+  if (lower.includes("silver") || lower.includes("grey") || lower.includes("gray")) filters.color = "Silver";
+  else if (lower.includes("white")) filters.color = "White";
+  else if (lower.includes("black")) filters.color = "Black";
+  else if (lower.includes("blue")) filters.color = "Blue";
+  else if (lower.includes("red")) filters.color = "Red";
+
+  // Make/Model detection
+  if (lower.includes("tesla")) filters.make = "Tesla";
+  else if (lower.includes("toyota")) filters.make = "Toyota";
+  else if (lower.includes("honda")) filters.make = "Honda";
+  else if (lower.includes("ford")) filters.make = "Ford";
+  else if (lower.includes("chevrolet") || lower.includes("chevy")) filters.make = "Chevrolet";
 
   return filters;
 }
@@ -79,6 +95,8 @@ export default function Home() {
       if (currentFilters.bodyStyle && car.body_style !== currentFilters.bodyStyle) return false;
       if (currentFilters.drivetrain && car.drivetrain !== currentFilters.drivetrain) return false;
       if (currentFilters.maxPrice && car.price > currentFilters.maxPrice) return false;
+            if (currentFilters.color && car.color !== currentFilters.color) return false;
+      if (currentFilters.make && car.make !== currentFilters.make) return false;
       return true;
     });
   }, [cars, currentFilters]);
@@ -106,6 +124,8 @@ export default function Home() {
     }).length;
 
     const sysMsg = generateSystemMessage(matchCount, filters);
+          if (filters.color && car.color !== filters.color) return false;
+      if (filters.make && car.make !== filters.make) return false;
     setSystemMessage(sysMsg);
 
     // Add system response as assistant message
