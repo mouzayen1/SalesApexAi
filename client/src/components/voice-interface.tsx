@@ -43,6 +43,7 @@ export function VoiceInterface({
   const [interimTranscript, setInterimTranscript] = useState("");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionType | null>(null);
+    const transcriptRef = useRef<string>("");
   const { toast } = useToast();
 
   // Check if browser supports SpeechRecognition
@@ -99,6 +100,7 @@ export function VoiceInterface({
         if (interim) setInterimTranscript(interim);
         if (final) {
           setFinalTranscript((prev) => prev + final);
+                  transcriptRef.current += final;
         }
       };
 
@@ -126,9 +128,9 @@ export function VoiceInterface({
 
       recognition.onend = () => {
         setIsListening(false);
-        const fullTranscript = finalTranscript.trim();
-        if (fullTranscript) {
+    const fullTranscript = transcriptRef.current.trim();        if (fullTranscript) {
           onTranscription(fullTranscript);
+            transcriptRef.current = ""; // Clear for next recognition
         }
       };
 
