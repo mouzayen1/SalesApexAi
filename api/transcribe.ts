@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import formidable from 'formidable';
+import Busboy from 'busboy';
 import OpenAI from 'openai';
-import fs from 'fs';
 
 export const config = {
   api: {
@@ -26,17 +25,30 @@ export default async function handler(
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const form = formidable({ maxFileSize: 25 * 1024 * 1024 });
+    const busboy = Busboy({ headers: request.headers });
+    const chunks: Buffer[] = [];
 
-    const [fields, files] = await form.parse(request as any);
-    const audioFile = files.audio?.[0];
+    const audioBuffer = await new Promise<Buffer>((resolve, reject) => {
+      busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        file.on('data', (data) => {
+          chunks.push(data);
+        });
+        file.on('end', () => {
+          resolve(Buffer.concat(chunks));
+        });
+      });
 
-    if (!audioFile) {
+      busboy.on('error', (error) => {
+        reject(error);
+      });
+
+      request.pipe(busboy);
+    });
+
+    if (!audioBuffer || audioBuffer.length === 0) {
       return response.status(400).json({ error: 'No audio file provided' });
     }
 
-    const audioBuffer = await fs.promises.readFile(audioFile.filepath);
-    
     // Create a File object from the buffer
     const file = new File([audioBuffer], 'audio.webm', { type: 'audio/webm' });
 
