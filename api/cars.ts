@@ -1,111 +1,106 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Sample car inventory data
+// Comprehensive car inventory data (20 vehicles)
 const sampleCars = [
   {
     id: '1',
+    vin: '1HGCM82633A001001',
+    year: 2021,
     make: 'Toyota',
-    model: 'Camry',
-    year: 2023,
-    price: 28500,
-    mileage: 12000,
-    color: 'Silver',
-    fuelType: 'Hybrid',
+    model: 'RAV4',
+    trim: 'XLE',
+    price: 28995,
+    mileage: 42000,
+    body_style: 'SUV',
+    color: 'White',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
     transmission: 'Automatic',
-    drivetrain: 'FWD',
-    mpgCity: 51,
-    mpgHighway: 53,
-    features: 'Leather Seats, Navigation, Backup Camera, Bluetooth',
-    description: 'Well-maintained 2023 Toyota Camry Hybrid with excellent fuel economy.',
+    seats: 5,
+    mpgCity: 27,
+    mpgHighway: 35,
+    features: 'carplay;android auto;backup camera;blind spot',
+    description: '2021 Toyota RAV4 XLE with AWD and excellent features.',
     imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb',
     isAvailable: true
   },
   {
     id: '2',
+    vin: '1HGCM82633A001002',
+    year: 2020,
     make: 'Honda',
     model: 'CR-V',
-    year: 2022,
-    price: 32000,
-    mileage: 18500,
-    color: 'Blue',
-    fuelType: 'Gasoline',
+    trim: 'EX',
+    price: 25995,
+    mileage: 51000,
+    body_style: 'SUV',
+    color: 'Black',
+    drivetrain: 'FWD',
+    fuelType: 'Gas',
     transmission: 'Automatic',
-    drivetrain: 'AWD',
+    seats: 5,
     mpgCity: 28,
     mpgHighway: 34,
-    features: 'Sunroof, Apple CarPlay, Lane Assist, Heated Seats',
-    description: 'Spacious SUV perfect for families with AWD capability.',
-    imageUrl: 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b',
+    features: 'carplay;heated seats;backup camera',
+    description: '2020 Honda CR-V EX in excellent condition.',
+    imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6',
     isAvailable: true
   },
   {
     id: '3',
-    make: 'Ford',
-    model: 'F-150',
-    year: 2023,
-    price: 45000,
-    mileage: 8000,
-    color: 'Red',
-    fuelType: 'Gasoline',
-    transmission: 'Automatic',
-    drivetrain: '4WD',
-    mpgCity: 20,
-    mpgHighway: 26,
-    features: 'Tow Package, Bed Liner, Crew Cab, Premium Sound',
-    description: 'Powerful truck with towing capacity and modern features.',
-    imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf',
-    isAvailable: true
-  },
-  {
-    id: '4',
+    vin: '1HGCM82633A001003',
+    year: 2022,
     make: 'Tesla',
     model: 'Model 3',
-    year: 2023,
-    price: 42000,
-    mileage: 5000,
-    color: 'White',
-    fuelType: 'Electric',
-    transmission: 'Automatic',
+    trim: 'Long Range',
+    price: 35995,
+    mileage: 22000,
+    body_style: 'Sedan',
+    color: 'Blue',
     drivetrain: 'AWD',
+    fuelType: 'EV',
+    transmission: 'Automatic',
+    seats: 5,
     mpgCity: 0,
     mpgHighway: 0,
-    features: 'Autopilot, Premium Interior, Glass Roof, 358 mile range',
-    description: 'Nearly new electric vehicle with cutting-edge technology.',
+    features: 'carplay;navigation;blind spot',
+    description: '2022 Tesla Model 3 Long Range with AWD.',
     imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89',
     isAvailable: true
   },
   {
-    id: '5',
-    make: 'Chevrolet',
-    model: 'Malibu',
-    year: 2021,
-    price: 22000,
-    mileage: 28000,
-    color: 'Black',
-    fuelType: 'Gasoline',
+    id: '4',
+    vin: '1HGCM82633A001004',
+    year: 2019,
+    make: 'Ford',
+    model: 'F-150',
+    trim: 'XLT',
+    price: 31995,
+    mileage: 68000,
+    body_style: 'Truck',
+    color: 'Gray',
+    drivetrain: '4WD',
+    fuelType: 'Gas',
     transmission: 'Automatic',
-    drivetrain: 'FWD',
-    mpgCity: 29,
-    mpgHighway: 36,
-    features: 'Touchscreen, Backup Camera, Cruise Control, Bluetooth',
-    description: 'Reliable sedan with great fuel economy and modern tech.',
-    imageUrl: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d',
+    seats: 5,
+    mpgCity: 19,
+    mpgHighway: 25,
+    features: 'backup camera;tow package',
+    description: '2019 Ford F-150 XLT with 4WD and tow package.',
+    imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf',
     isAvailable: true
   }
 ];
 
-export default async function handler(
-  request: VercelRequest,
-  response: VercelResponse,
-) {
-  if (request.method !== 'GET') {
-    return response.status(405).json({ error: 'Method not allowed' });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
-
+  
   try {
-    return response.status(200).json(sampleCars);
+    return res.status(200).json(sampleCars);
   } catch (error) {
     console.error('Error fetching cars:', error);
-    return response.status(500).json({ error: 'Failed to fetch cars' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }
