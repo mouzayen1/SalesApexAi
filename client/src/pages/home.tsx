@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Car as CarIcon, Trash2, Volume2, VolumeX } from "lucide-react";
+import { Car as CarIcon, Trash2, Volume2, VolumeX, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -10,76 +10,26 @@ import { ConversationDisplay } from "@/components/conversation-display";
 import { CarInventory } from "@/components/car-inventory";
 import { useToast } from "@/hooks/use-toast";
 import type { Message, Car } from "@shared/schema";
+import { extractFilters, type Filters } from "@/lib/extractFilters";
+import { filterInventory, type FilterResult } from "@/lib/filterInventory";
 
-// Deterministic filter parser
-function parseFilters(transcript: string) {
-  const lower = transcript.toLowerCase();
-  const filters: {
-    bodyStyle?: string;
-    drivetrain?: string;
-    maxPrice?: number;
-        color?: string;
-    make?: string;
-  } = {};
-
-  // Body style detection
-  if (lower.includes("suv")) filters.bodyStyle = "SUV";
-  else if (lower.includes("sedan")) filters.bodyStyle = "Sedan";
-  else if (lower.includes("truck")) filters.bodyStyle = "Truck";
-  else if (lower.includes("coupe")) filters.bodyStyle = "Coupe";
-
-  // Drivetrain detection
-  if (lower.includes("awd") || lower.includes("all wheel")) filters.drivetrain = "AWD";
-  else if (lower.includes("fwd") || lower.includes("front wheel")) filters.drivetrain = "FWD";
-  else if (lower.includes("4wd") || lower.includes("four wheel")) filters.drivetrain = "4WD";
-  else if (lower.includes("rwd") || lower.includes("rear wheel")) filters.drivetrain = "RWD";
-
-  // Price detection (under $X)
-  const priceMatch = lower.match(/under\s?\$?(\d{2,6})k?/);
-  if (priceMatch) {
-    const num = parseInt(priceMatch[1]);
-    filters.maxPrice = priceMatch[0].includes("k") ? num * 1000 : num;
-  }
-
-    // Color detection
-  if (lower.includes("silver") || lower.includes("grey") || lower.includes("gray")) filters.color = "Silver";
-  else if (lower.includes("white")) filters.color = "White";
-  else if (lower.includes("black")) filters.color = "Black";
-  else if (lower.includes("blue")) filters.color = "Blue";
-  else if (lower.includes("red")) filters.color = "Red";
-
-  // Make/Model detection
-  if (lower.includes("tesla")) filters.make = "Tesla";
-  else if (lower.includes("toyota")) filters.make = "Toyota";
-  else if (lower.includes("honda")) filters.make = "Honda";
-  else if (lower.includes("ford")) filters.make = "Ford";
-  else if (lower.includes("chevrolet") || lower.includes("chevy")) filters.make = "Chevrolet";
-
-  return filters;
-}
-
-// Generate system message
-function generateSystemMessage(count: number, filters: any): string {
-  if (count === 0) {
-    return "No matches found. Try adjusting your budget, drivetrain, or vehicle type.";
-  }
-
-  let parts: string[] = [];
-  parts.push(`Showing ${count}`);
-  if (filters.drivetrain) parts.push(filters.drivetrain);
-  if (filters.bodyStyle) parts.push(filters.bodyStyle + (count > 1 ? "s" : ""));
-  else parts.push(count > 1 ? "vehicles" : "vehicle");
-  if (filters.maxPrice) parts.push(`under $${filters.maxPrice.toLocaleString()}`);
-
-  return parts.join(" ");
-}
+// Test phrases for quick testing
+const TEST_PHRASES = [
+  "Show me AWD SUVs under 40k with CarPlay and heated seats",
+  "Find a 2021 or newer Honda under 30k",
+  "Electric sedan under 35k",
+  "Truck 4WD under 32k less than 70k miles",
+  "7 seater SUV with third row under 45k",
+];
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [systemMessage, setSystemMessage] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentFilters, setCurrentFilters] = useState<any>({});
+  const [currentFilters, setCurrentFilters] = useState<Filters>({});
+  const [filterResult, setFilterResult] = useState<FilterResult | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
@@ -87,19 +37,10 @@ export default function Home() {
     queryKey: ["/api/cars"],
   });
 
-  // Filter cars based on current filters
+  // Get filtered cars from filterResult
   const filteredCars = useMemo(() => {
-    if (!cars.length) return [];
-    
-    return cars.filter((car) => {
-      if (currentFilters.bodyStyle && car.body_style !== currentFilters.bodyStyle) return false;
-      if (currentFilters.drivetrain && car.drivetrain !== currentFilters.drivetrain) return false;
-      if (currentFilters.maxPrice && car.price > currentFilters.maxPrice) return false;
-            if (currentFilters.color && car.color !== currentFilters.color) return false;
-      if (currentFilters.make && car.make !== currentFilters.make) return false;
-      return true;
-    });
-  }, [cars, currentFilters]);
+    return filterResult?.results || cars;
+  }, [filterResult, cars]);
 
   const handleTranscription = useCallback((text: string) => {
     // Add user message
@@ -111,25 +52,39 @@ export default function Home() {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Parse filters from transcript
-    const filters = parseFilters(text);
+    // Extract filters using new comprehensive module
+    const filters = extractFilters(text, cars);
     setCurrentFilters(filters);
 
+    // Apply filters using new filtering engine
+    const result = filterInventory(cars, filters);
+    setFilterResult(result);
+
     // Generate system message
-    const matchCount = cars.filter((car) => {
-      if (filters.bodyStyle && car.body_style !== filters.bodyStyle) return false;
-      if (filters.drivetrain && car.drivetrain !== filters.drivetrain) return false;
-      if (filters.maxPrice && car.price > filters.maxPrice) return false;
-                if (filters.color && car.color !== filters.color) return false;
-      if (filters.make && car.make !== filters.make) return false;
-
-      return true;
-    }).length;
-
-    const sysMsg = generateSystemMessage(matchCount, filters);
+    const count = result.results.length;
+    let sysMsg = "";
+    
+    if (count === 0) {
+      sysMsg = "No matches found. Try increasing budget, changing drivetrain, or removing a feature.";
+    } else {
+      let parts: string[] = [`Showing ${count}`];
+      if (filters.drivetrain && filters.drivetrain.length > 0) {
+        parts.push(filters.drivetrain.join("/"));
+      }
+      if (filters.bodyStyle && filters.bodyStyle.length > 0) {
+        parts.push(filters.bodyStyle.join("/") + (count > 1 ? "s" : ""));
+      } else {
+        parts.push(count > 1 ? "vehicles" : "vehicle");
+      }
+      if (filters.maxPrice) {
+        parts.push(`under $${filters.maxPrice.toLocaleString()}`);
+      }
+      sysMsg = parts.join(" ");
+    }
+    
     setSystemMessage(sysMsg);
 
-    // Add system response as assistant message
+    // Add system response
     const assistantMessage: Message = {
       id: crypto.randomUUID(),
       role: "assistant",
@@ -144,6 +99,10 @@ export default function Home() {
     });
   }, [cars, toast]);
 
+  const handleTestPhrase = (phrase: string) => {
+    handleTranscription(phrase);
+  };
+
   const handleStopSpeaking = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -156,6 +115,7 @@ export default function Home() {
     setMessages([]);
     setSystemMessage(null);
     setCurrentFilters({});
+    setFilterResult(null);
     handleStopSpeaking();
   };
 
@@ -179,7 +139,6 @@ export default function Home() {
               <p className="text-xs text-muted-foreground hidden sm:block" data-testid="text-app-subtitle">Voice-Controlled Inventory Search</p>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -234,10 +193,76 @@ export default function Home() {
                   </Button>
                 </div>
               )}
+
+              {/* Test Phrases */}
+              <div className="mt-6 pt-4 border-t">
+                <p className="text-sm text-muted-foreground mb-3">Try these:</p>
+                <div className="space-y-2">
+                  {TEST_PHRASES.map((phrase, i) => (
+                    <Button
+                      key={i}
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-xs h-auto py-2 px-3"
+                      onClick={() => handleTestPhrase(phrase)}
+                    >
+                      {phrase}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Debug Panel */}
+              {filterResult && (
+                <div className="mt-4 pt-4 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDebug(!showDebug)}
+                    className="w-full justify-between text-xs"
+                  >
+                    <span>Extracted Filters (Debug)</span>
+                    {showDebug ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                  {showDebug && (
+                    <div className="mt-2 p-3 bg-muted rounded-md">
+                      <pre className="text-xs overflow-auto">
+                        {JSON.stringify({
+                          filters: currentFilters,
+                          totalCars: filterResult.debug.totalCars,
+                          matchedCars: filterResult.debug.matchedCars,
+                          appliedFilters: filterResult.debug.appliedFilters,
+                        }, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
           </div>
 
           <div className="flex-1 lg:w-[55%] overflow-hidden bg-muted/30" data-testid="panel-inventory">
+            {/* System Message Banner */}
+            {systemMessage && filterResult && (
+              <div className={
+                filterResult.results.length === 0
+                  ? "bg-yellow-50 dark:bg-yellow-950 border-b border-yellow-200 dark:border-yellow-800 p-4"
+                  : "bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800 p-4"
+              }>
+                <p className={
+                  filterResult.results.length === 0
+                    ? "text-sm text-yellow-800 dark:text-yellow-200 font-medium"
+                    : "text-sm text-blue-800 dark:text-blue-200 font-medium"
+                }>
+                  {systemMessage}
+                </p>
+                {filterResult.debug.appliedFilters.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Applied: {filterResult.debug.appliedFilters.join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
             <CarInventory cars={filteredCars} isLoading={carsLoading} />
           </div>
         </div>
