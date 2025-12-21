@@ -55,9 +55,9 @@ export default function Home() {
     const result = filterInventory(safeInventory, normalized);    console.log("[Home] Filter result:", result);
     
     // Generate title and subtitle
-    const title = result.length === 0 
+    const title = result.results.length === 0 
       ? "No matches found"
-      : `Found ${result.length} ${result.length === 1 ? 'vehicle' : 'vehicles'}`;
+      : `Found ${result.results.length} ${result.results.length === 1 ? 'vehicle' : 'vehicles'}`;
     
     const subtitle = Object.keys(normalized).length === 0
       ? "Try adding filters like price, make, or features"
@@ -70,7 +70,7 @@ export default function Home() {
     setSheetOpen(true);
     
     // Set system message banner
-    if (result.length === 0) {
+    if (result.results.length === 0) {
       setSystemMessage(result.reasoning || "No vehicles match your criteria");
     } else {
       setSystemMessage(result.reasoning || null);
@@ -188,25 +188,31 @@ export default function Home() {
   );
 }
 
-function generateSubtitle(filters: Filters): string {
-    if (!filters) return "All vehicles";
+import type { NormalizedFilters } from "@/lib/normalizeFilters";
+
+function generateSubtitle(filters: NormalizedFilters): string {
+  if (!filters) return "All vehicles";
   const parts: string[] = [];
-  
-  if (filters.make) parts.push(filters.make);
-  if (filters.year?.min) parts.push(`${filters.year.min}+`);
-  if (filters.price?.max) parts.push(`Under $${(filters.price.max / 1000).toFixed(0)}k`);
-  if (filters.drivetrain) parts.push(filters.drivetrain.toUpperCase());
-  if (filters.body_style) parts.push(filters.body_style);
-  if (filters.fuel_type) parts.push(filters.fuel_type);
-  
-  const features: string[] = [];  if (filters.features?.carplay) features.push("CarPlay");
-  if (filters.features?.heated_seats) features.push("Heated Seats");
-  if (filters.features?.sunroof) features.push("Sunroof");
-  if (filters.features?.backup_camera) features.push("Backup Camera");
-  if (filters.features?.leather) features.push("Leather");
-  if (filters.features?.third_row) features.push("3rd Row");
-  
-  if (features.length > 0) parts.push(features.join(", "));
-  
+
+  if (filters.make?.length) parts.push(filters.make.join("/"));
+  if (filters.minYear) parts.push(`${filters.minYear}+`);
+  if (filters.maxPrice) parts.push(`Under $${(filters.maxPrice / 1000).toFixed(0)}k`);
+  if (filters.drivetrain?.length) parts.push(filters.drivetrain.map(d => d.toUpperCase()).join("/"));
+  if (filters.bodyStyle?.length) parts.push(filters.bodyStyle.join("/"));
+  if (filters.fuel?.length) parts.push(filters.fuel.join("/"));
+
+  if (filters.features?.length) {
+    const featureLabels = filters.features.map(f => {
+      if (f === "carplay") return "CarPlay";
+      if (f === "heated_seats") return "Heated Seats";
+      if (f === "sunroof") return "Sunroof";
+      if (f === "backup_camera") return "Backup Camera";
+      if (f === "leather") return "Leather";
+      if (f === "third_row") return "3rd Row";
+      return f;
+    });
+    parts.push(featureLabels.join(", "));
+  }
+
   return parts.length > 0 ? parts.join(" • ") : "All vehicles";
 }
