@@ -6,20 +6,19 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoiceInterface } from "@/components/voice-interface";
-import { ConversationDisplay } from "@/components/conversation-display";
 import { CarInventory } from "@/components/car-inventory";
 import { useToast } from "@/hooks/use-toast";
 import type { Message, Car } from "@shared/schema";
 import { extractFilters, type Filters } from "@/lib/extractFilters";
 import { filterInventory, type FilterResult } from "@/lib/filterInventory";
+import { ResultsBottomSheet } from "@/components/ResultsBottomSheet";
 
 // Test phrases for quick testing
 const TEST_PHRASES = [
   "Show me AWD SUVs under 40k with CarPlay and heated seats",
-  "Find a 2021 or newer Honda under 30k",
-  "Electric sedan under 35k",
+  "Find a 2021 or newer Honda under 30K",  "Electric sedan under 35k",
   "Truck 4WD under 32k less than 70k miles",
-  "7 seater SUV with third row under 45k",
+  "7 seater SUV with third row under 45K",
 ];
 
 export default function Home() {
@@ -28,245 +27,183 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [currentFilters, setCurrentFilters] = useState<Filters>({});
-  const [filterResult, setFilterResult] = useState<FilterResult | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { toast } = useToast();
+  const [debugOpen, setDebugOpen] = useState(false);
+  
+  // Bottom sheet state
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetTitle, setSheetTitle] = useState("");
+  const [sheetSubtitle, setSheetSubtitle] = useState("");
+  const [sheetResults, setSheetResults] = useState<FilterResult | null>(null);
 
-  const { data: cars = [], isLoading: carsLoading } = useQuery<Car[]>({
-    queryKey: ["/api/cars"],
+  const { data: inventory = [] } = useQuery<Car[]>({
+    queryKey: ["/api/inventory"],
   });
 
-  // Get filtered cars from filterResult
-  const filteredCars = useMemo(() => {
-    return filterResult?.results || cars;
-  }, [filterResult, cars]);
+  const { toast } = useToast();
 
   const handleTranscription = useCallback((text: string) => {
-    // Add user message
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-      timestamp: Date.now(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-
-    // Extract filters using new comprehensive module
-    const filters = extractFilters(text, cars);
+    console.log("[Home] Transcription received:", text);
+    
+    // Extract filters from transcript
+    const filters = extractFilters(text);
     setCurrentFilters(filters);
-
-    // Apply filters using new filtering engine
-    const result = filterInventory(cars, filters);
-    setFilterResult(result);
-
-    // Generate system message
-    const count = result.results.length;
-    let sysMsg = "";
+    console.log("[Home] Extracted filters:", filters);
     
-    if (count === 0) {
-      sysMsg = "No matches found. Try increasing budget, changing drivetrain, or removing a feature.";
+    // Filter inventory
+    const result = filterInventory(inventory, filters);    console.log("[Home] Filter result:", result);
+    
+    // Generate title and subtitle
+    const title = result.matches.length === 0 
+      ? "No matches found"
+      : `Found ${result.matches.length} ${result.matches.length === 1 ? 'vehicle' : 'vehicles'}`;
+    
+    const subtitle = Object.keys(filters).length === 0
+      ? "Try adding filters like price, make, or features"
+      : generateSubtitle(filters);
+    
+    // Update bottom sheet
+    setSheetTitle(title);
+    setSheetSubtitle(subtitle);
+    setSheetResults(result);
+    setSheetOpen(true);
+    
+    // Set system message banner
+    if (result.matches.length === 0) {
+      setSystemMessage(result.reasoning || "No vehicles match your criteria");
     } else {
-      let parts: string[] = [`Showing ${count}`];
-      if (filters.drivetrain && filters.drivetrain.length > 0) {
-        parts.push(filters.drivetrain.join("/"));
-      }
-      if (filters.bodyStyle && filters.bodyStyle.length > 0) {
-        parts.push(filters.bodyStyle.join("/") + (count > 1 ? "s" : ""));
-      } else {
-        parts.push(count > 1 ? "vehicles" : "vehicle");
-      }
-      if (filters.maxPrice) {
-        parts.push(`under $${filters.maxPrice.toLocaleString()}`);
-      }
-      sysMsg = parts.join(" ");
+      setSystemMessage(result.reasoning || null);
     }
-    
-    setSystemMessage(sysMsg);
-
-    // Add system response
-    const assistantMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: sysMsg,
-      timestamp: Date.now(),
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
-
-    toast({
-      title: "Filters applied",
-      description: sysMsg,
-    });
-  }, [cars, toast]);
+  }, [inventory]);
 
   const handleTestPhrase = (phrase: string) => {
     handleTranscription(phrase);
   };
 
-  const handleStopSpeaking = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    setIsSpeaking(false);
-  }, []);
-
-  const handleClearConversation = () => {
-    setMessages([]);
-    setSystemMessage(null);
-    setCurrentFilters({});
-    setFilterResult(null);
-    handleStopSpeaking();
-  };
-
-  const toggleMute = () => {
-    if (isSpeaking) {
-      handleStopSpeaking();
-    }
-    setIsMuted((prev) => !prev);
-  };
-
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between gap-4 h-16 px-4 md:px-8 max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center" data-testid="logo-container">
-              <CarIcon className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-display text-lg font-bold leading-tight" data-testid="text-app-title">SalesApex AI</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block" data-testid="text-app-subtitle">Voice-Controlled Inventory Search</p>
-            </div>
+    <div className="min-h-screen flex flex-col">
+      <header className="border-b">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CarIcon className="h-6 w-6" />
+            <h1 className="text-xl font-bold">AutoVoice AI</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
+            <Button              variant="ghost"
               size="icon"
-              onClick={toggleMute}
-              data-testid="button-mute-toggle"
-              aria-label={isMuted ? "Unmute" : "Mute"}
+              onClick={() => setIsMuted(!isMuted)}
             >
-              {isMuted ? (
-                <VolumeX className="h-5 w-5" />
-              ) : (
-                <Volume2 className="h-5 w-5" />
-              )}
+              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full" data-testid="main-content">
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)]">
-          <div className="flex flex-col lg:w-[45%] border-r" data-testid="panel-voice">
-            <div className="flex-1 overflow-hidden">
-              <ConversationDisplay
-                messages={messages}
-                isLoading={false}
-              />
-            </div>
-            
-            <Separator />
-            
-            <Card className="m-4 p-6 border-card-border" data-testid="card-voice-controls">
-              <VoiceInterface
-                onTranscription={handleTranscription}
-                isProcessing={false}
-                isSpeaking={isSpeaking}
-                onStopSpeaking={handleStopSpeaking}
-                isConfigured={true}
-              />
-              
-              {messages.length > 0 && (
-                <div className="flex justify-center mt-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearConversation}
-                    className="text-muted-foreground"
-                    data-testid="button-clear-conversation"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Clear conversation
-                  </Button>
-                </div>
-              )}
-
-              {/* Test Phrases */}
-              <div className="mt-6 pt-4 border-t">
-                <p className="text-sm text-muted-foreground mb-3">Try these:</p>
-                <div className="space-y-2">
-                  {TEST_PHRASES.map((phrase, i) => (
-                    <Button
-                      key={i}
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start text-xs h-auto py-2 px-3"
-                      onClick={() => handleTestPhrase(phrase)}
-                    >
-                      {phrase}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Debug Panel */}
-              {filterResult && (
-                <div className="mt-4 pt-4 border-t">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowDebug(!showDebug)}
-                    className="w-full justify-between text-xs"
-                  >
-                    <span>Extracted Filters (Debug)</span>
-                    {showDebug ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </Button>
-                  {showDebug && (
-                    <div className="mt-2 p-3 bg-muted rounded-md">
-                      <pre className="text-xs overflow-auto">
-                        {JSON.stringify({
-                          filters: currentFilters,
-                          totalCars: filterResult.debug.totalCars,
-                          matchedCars: filterResult.debug.matchedCars,
-                          appliedFilters: filterResult.debug.appliedFilters,
-                        }, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )}
-            </Card>
+      {systemMessage && (
+        <div className="bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800">
+          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-blue-900 dark:text-blue-100">{systemMessage}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSystemMessage(null)}
+            >
+              Dismiss
+            </Button>
           </div>
+        </div>
+      )}
 
-          <div className="flex-1 lg:w-[55%] overflow-hidden bg-muted/30" data-testid="panel-inventory">
-            {/* System Message Banner */}
-            {systemMessage && filterResult && (
-              <div className={
-                filterResult.results.length === 0
-                  ? "bg-yellow-50 dark:bg-yellow-950 border-b border-yellow-200 dark:border-yellow-800 p-4"
-                  : "bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800 p-4"
-              }>
-                <p className={
-                  filterResult.results.length === 0
-                    ? "text-sm text-yellow-800 dark:text-yellow-200 font-medium"
-                    : "text-sm text-blue-800 dark:text-blue-200 font-medium"
-                }>
-                  {systemMessage}
-                </p>
-                {filterResult.debug.appliedFilters.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Applied: {filterResult.debug.appliedFilters.join(", ")}
-                  </p>
+      <main className="flex-1 container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <Card className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Voice-Driven Car Search</h2>
+            <p className="text-muted-foreground mb-6">
+              Use your voice to search our inventory. Try saying things like "Show me AWD SUVs under 40k" or "Find a Honda under 30K"
+            </p>
+            <VoiceInterface
+              onTranscription={handleTranscription}
+              isSpeaking={isSpeaking}              isMuted={isMuted}
+            />
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-semibold mb-3">Quick Test Phrases</h3>
+            <div className="flex flex-wrap gap-2">
+              {TEST_PHRASES.map((phrase, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleTestPhrase(phrase)}
+                >
+                  {phrase}
+                </Button>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Debug Panel</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDebugOpen(!debugOpen)}
+              >
+                {debugOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </div>
+            {debugOpen && (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Current Filters:</h4>
+                  <pre className="text-xs bg-muted p-3 rounded overflow-auto">
+                    {JSON.stringify(currentFilters, null, 2)}                  </pre>
+                </div>
+                {sheetResults && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Filter Results:</h4>
+                    <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-60">
+                      {JSON.stringify(sheetResults, null, 2)}
+                    </pre>
+                  </div>
                 )}
               </div>
             )}
-            <CarInventory cars={filteredCars} isLoading={carsLoading} />
-          </div>
+          </Card>
         </div>
       </main>
+
+      <ResultsBottomSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        title={sheetTitle}
+        subtitle={sheetSubtitle}
+        results={sheetResults}
+      />
     </div>
   );
+}
+
+function generateSubtitle(filters: Filters): string {
+  const parts: string[] = [];
+  
+  if (filters.make) parts.push(filters.make);
+  if (filters.year?.min) parts.push(`${filters.year.min}+`);
+  if (filters.price?.max) parts.push(`Under $${(filters.price.max / 1000).toFixed(0)}k`);
+  if (filters.drivetrain) parts.push(filters.drivetrain.toUpperCase());
+  if (filters.body_style) parts.push(filters.body_style);
+  if (filters.fuel_type) parts.push(filters.fuel_type);
+  
+  const features: string[] = [];  if (filters.features?.carplay) features.push("CarPlay");
+  if (filters.features?.heated_seats) features.push("Heated Seats");
+  if (filters.features?.sunroof) features.push("Sunroof");
+  if (filters.features?.backup_camera) features.push("Backup Camera");
+  if (filters.features?.leather) features.push("Leather");
+  if (filters.features?.third_row) features.push("3rd Row");
+  
+  if (features.length > 0) parts.push(features.join(", "));
+  
+  return parts.length > 0 ? parts.join(" • ") : "All vehicles";
 }
