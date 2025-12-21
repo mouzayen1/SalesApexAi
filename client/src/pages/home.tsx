@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Message, Car } from "@shared/schema";
 import { extractFilters, type Filters } from "@/lib/extractFilters";
 import { filterInventory, type FilterResult } from "@/lib/filterInventory";
+import { normalizeFilters } from "@/lib/normalizeFilters";
 import ResultsBottomSheet from "@/components/ResultsBottomSheet";
 
 // Test phrases for quick testing
@@ -45,21 +46,22 @@ export default function Home() {
     
     // Extract filters from transcript
     const filters = extractFilters(text) ?? {};
-    setCurrentFilters(filters);
+        const normalized = normalizeFilters(filters);
+    setCurrentFilters(normalized);
     console.log("[Home] Extracted filters:", filters);
     
     // Filter inventory
         const safeInventory = Array.isArray(inventory) ? inventory : [];
-    const result = filterInventory(safeInventory, filters);    console.log("[Home] Filter result:", result);
+    const result = filterInventory(safeInventory, normalized);    console.log("[Home] Filter result:", result);
     
     // Generate title and subtitle
     const title = result.length === 0 
       ? "No matches found"
       : `Found ${result.length} ${result.length === 1 ? 'vehicle' : 'vehicles'}`;
     
-    const subtitle = Object.keys(filters).length === 0
+    const subtitle = Object.keys(normalized).length === 0
       ? "Try adding filters like price, make, or features"
-      : generateSubtitle(filters);
+      : generateSubtitle(normalized);
     
     // Update bottom sheet
     setSheetTitle(title);
