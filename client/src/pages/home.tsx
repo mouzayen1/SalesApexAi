@@ -49,7 +49,8 @@ export default function Home() {
     console.log("[Home] Extracted filters:", filters);
     
     // Filter inventory
-    const result = filterInventory(inventory, filters);    console.log("[Home] Filter result:", result);
+        const safeInventory = Array.isArray(inventory) ? inventory : [];
+    const result = filterInventory(safeInventory, filters);    console.log("[Home] Filter result:", result);
     
     // Generate title and subtitle
     const title = result.matches.length === 0 
