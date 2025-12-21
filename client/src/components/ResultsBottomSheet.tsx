@@ -19,7 +19,7 @@ export default function ResultsBottomSheet(props: {
   const { open, onOpenChange, title, subtitle, results } = props;
 
   // Safe defaults
-  const safeMatches = Array.isArray(results?.matches) ? results.matches : [];
+  const safeMatches = Array.isArray(results?.results) ? results.results : [];
   const safeFilters = (results?.filters ?? {}) as Filters;
   const safeTitle = title ?? "Results";
   const safeSubtitle = subtitle ?? "";
