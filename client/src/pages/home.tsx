@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Message, Car } from "@shared/schema";
 import { extractFilters, type Filters } from "@/lib/extractFilters";
 import { filterInventory, type FilterResult } from "@/lib/filterInventory";
-import { ResultsBottomSheet } from "@/components/ResultsBottomSheet";
+import ResultsBottomSheet from "@/components/ResultsBottomSheet";
 
 // Test phrases for quick testing
 const TEST_PHRASES = [
