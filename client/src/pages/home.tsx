@@ -53,9 +53,9 @@ export default function Home() {
     const result = filterInventory(safeInventory, filters);    console.log("[Home] Filter result:", result);
     
     // Generate title and subtitle
-    const title = result.matches.length === 0 
+    const title = result.length === 0 
       ? "No matches found"
-      : `Found ${result.matches.length} ${result.matches.length === 1 ? 'vehicle' : 'vehicles'}`;
+      : `Found ${result.length} ${result.length === 1 ? 'vehicle' : 'vehicles'}`;
     
     const subtitle = Object.keys(filters).length === 0
       ? "Try adding filters like price, make, or features"
@@ -68,7 +68,7 @@ export default function Home() {
     setSheetOpen(true);
     
     // Set system message banner
-    if (result.matches.length === 0) {
+    if (result.length === 0) {
       setSystemMessage(result.reasoning || "No vehicles match your criteria");
     } else {
       setSystemMessage(result.reasoning || null);
