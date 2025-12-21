@@ -45,7 +45,7 @@ export default function Home() {
     console.log("[Home] Transcription received:", text);
     
     // Extract filters from transcript
-    const filters = extractFilters(text);
+    const filters = extractFilters(text) ?? {};
     setCurrentFilters(filters);
     console.log("[Home] Extracted filters:", filters);
     
@@ -187,6 +187,7 @@ export default function Home() {
 }
 
 function generateSubtitle(filters: Filters): string {
+    if (!filters) return "All vehicles";
   const parts: string[] = [];
   
   if (filters.make) parts.push(filters.make);
