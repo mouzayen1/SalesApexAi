@@ -36,8 +36,7 @@ export default function Home() {
   const [sheetResults, setSheetResults] = useState<FilterResult | null>(null);
 
   const { data: inventory = [] } = useQuery<Car[]>({
-    queryKey: ["/api/inventory"],
-  });
+    queryKey: ["/api/cars"],  });
 
   const { toast } = useToast();
 
