@@ -16,10 +16,10 @@ import ResultsBottomSheet from "@/components/ResultsBottomSheet";
 
 // Test phrases for quick testing
 const TEST_PHRASES = [
-  "Show me AWD SUVs under 40k with CarPlay and heated seats",
-  "Find a 2021 or newer Honda under 30K",  "Electric sedan under 35k",
+  "Show me car under 30k",
+  "Find a 2021 or newer Honda under 30K",  "Show me only electric cars",
   "Truck 4WD under 32k less than 70k miles",
-  "7 seater SUV with third row under 45K",
+  "Find only coupes 2 door vehicles",
 ];
 
 export default function Home() {
