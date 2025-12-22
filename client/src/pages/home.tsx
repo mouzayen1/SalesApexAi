@@ -16,10 +16,10 @@ import ResultsBottomSheet from "@/components/ResultsBottomSheet";
 
 // Test phrases for quick testing
 const TEST_PHRASES = [
-  "Show me car under 30k",
-  "Find a 2021 or newer Honda under 30K",  "Show me only electric cars",
+  "Show me all vehicles under 30k",
+  "Find a 2021 or newer Honda under 30K",  "Show me only electric vehicles",
   "Truck 4WD under 32k less than 70k miles",
-  "Find only coupes 2 door vehicles",
+  "Find only coupe 2 door vehicles",
 ];
 
 export default function Home() {
