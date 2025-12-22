@@ -1,113 +1,458 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import fs from "fs";
-import path from "path";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-/**
- * Minimal CSV parser that supports quoted fields with commas.
- * Good enough for inventory.csv style files.
- */
-function parseCSV(text: string): Record<string, string>[] {
-  const lines = text
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean);
+// Comprehensive car inventory data (20 vehicles)
+const sampleCars = [
+  {
+    id: '1',
+    vin: '1HGCM82633A001001',
+    year: 2021,
+    make: 'Toyota',
+    model: 'RAV4',
+    trim: 'XLE',
+    price: 28995,
+    mileage: 42000,
+    body_style: 'SUV',
+    color: 'White',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 27,
+    mpgHighway: 35,
+    features: 'carplay;android auto;backup camera;blind spot',
+    description: '2021 Toyota RAV4 XLE with AWD and excellent features.',
+    imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb',
+    isAvailable: true
+  },
+  {
+    id: '2',
+    vin: '1HGCM82633A001002',
+    year: 2020,
+    make: 'Honda',
+    model: 'CR-V',
+    trim: 'EX',
+    price: 25995,
+    mileage: 51000,
+    body_style: 'SUV',
+    color: 'Black',
+    drivetrain: 'FWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 28,
+    mpgHighway: 34,
+    features: 'carplay;heated seats;backup camera',
+    description: '2020 Honda CR-V EX in excellent condition.',
+    imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6',
+    isAvailable: true
+  },
+  {
+    id: '3',
+    vin: '1HGCM82633A001003',
+    year: 2022,
+    make: 'Tesla',
+    model: 'Model 3',
+    trim: 'Long Range',
+    price: 35995,
+    mileage: 22000,
+    body_style: 'Sedan',
+    color: 'Blue',
+    drivetrain: 'AWD',
+    fuelType: 'EV',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 0,
+    mpgHighway: 0,
+    features: 'carplay;navigation;blind spot',
+    description: '2022 Tesla Model 3 Long Range with AWD.',
+    imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89',
+    isAvailable: true
+  },
+  {
+    id: '4',
+    vin: '1HGCM82633A001004',
+    year: 2019,
+    make: 'Ford',
+    model: 'F-150',
+    trim: 'XLT',
+    price: 31995,
+    mileage: 68000,
+    body_style: 'Truck',
+    color: 'Gray',
+    drivetrain: '4WD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 19,
+    mpgHighway: 25,
+    features: 'backup camera;tow package',
+    description: '2019 Ford F-150 XLT with 4WD and tow package.',
+    imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf',
+    isAvailable: true
+  },
+  {
+    id: '5',
+    vin: '1HGCM82633A001005',
+    year: 2023,
+    make: 'Toyota',
+    model: 'Camry',
+    trim: 'SE',
+    price: 28500,
+    mileage: 12000,
+    body_style: 'Sedan',
+    color: 'Silver',
+    drivetrain: 'FWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 28,
+    mpgHighway: 39,
+    features: 'carplay;backup camera;blind spot',
+    description: '2023 Toyota Camry SE in excellent condition.',
+    imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb',
+    isAvailable: true
+  },
+  {
+    id: '6',
+    vin: '1HGCM82633A001006',
+    year: 2022,
+    make: 'Honda',
+    model: 'CR-V',
+    trim: 'Sport',
+    price: 32000,
+    mileage: 18500,
+    body_style: 'SUV',
+    color: 'Blue',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 28,
+    mpgHighway: 34,
+    features: 'navigation;heated seats;backup camera',
+    description: '2022 Honda CR-V Sport with AWD.',
+    imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6',
+    isAvailable: true
+  },
+  {
+    id: '7',
+    vin: '1HGCM82633A001007',
+    year: 2023,
+    make: 'Tesla',
+    model: 'Model 3',
+    trim: 'Standard Range',
+    price: 42000,
+    mileage: 5000,
+    body_style: 'Sedan',
+    color: 'White',
+    drivetrain: 'AWD',
+    fuelType: 'EV',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 0,
+    mpgHighway: 0,
+    features: 'carplay;navigation;backup camera',
+    description: '2023 Tesla Model 3 with low mileage.',
+    imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89',
+    isAvailable: true
+  },
+  {
+    id: '8',
+    vin: '1HGCM82633A001008',
+    year: 2023,
+    make: 'Ford',
+    model: 'F-150',
+    trim: 'Lariat',
+    price: 45000,
+    mileage: 8000,
+    body_style: 'Truck',
+    color: 'Red',
+    drivetrain: '4WD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 20,
+    mpgHighway: 26,
+    features: 'backup camera;tow package;heated seats',
+    description: '2023 Ford F-150 Lariat with luxury features.',
+    imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf',
+    isAvailable: true
+  },
+  {
+    id: '9',
+    vin: '1HGCM82633A001009',
+    year: 2021,
+    make: 'Chevrolet',
+    model: 'Malibu',
+    trim: 'LT',
+    price: 22000,
+    mileage: 28000,
+    body_style: 'Sedan',
+    color: 'Black',
+    drivetrain: 'FWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 29,
+    mpgHighway: 36,
+    features: 'carplay;backup camera',
+    description: '2021 Chevrolet Malibu LT with great fuel economy.',
+    imageUrl: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d',
+    isAvailable: true
+  },
+  {
+    id: '10',
+    vin: '1HGCM82633A001010',
+    year: 2022,
+    make: 'Nissan',
+    model: 'Rogue',
+    trim: 'SV',
+    price: 29000,
+    mileage: 15000,
+    body_style: 'SUV',
+    color: 'White',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 27,
+    mpgHighway: 35,
+    features: 'navigation;backup camera;blind spot',
+    description: '2022 Nissan Rogue SV with AWD.',
+    imageUrl: 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b',
+    isAvailable: true
+  },
+  {
+    id: '11',
+    vin: '1HGCM82633A001011',
+    year: 2023,
+    make: 'Mazda',
+    model: 'CX-5',
+    trim: 'Touring',
+    price: 33000,
+    mileage: 10000,
+    body_style: 'SUV',
+    color: 'Red',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 25,
+    mpgHighway: 31,
+    features: 'carplay;heated seats;backup camera',
+    description: '2023 Mazda CX-5 Touring with premium features.',
+    imageUrl: 'https://images.unsplash.com/photo-1617469767053-d3b523a0b982',
+    isAvailable: true
+  },
+  {
+    id: '12',
+    vin: '1HGCM82633A001012',
+    year: 2021,
+    make: 'Subaru',
+    model: 'Outback',
+    trim: 'Limited',
+    price: 31000,
+    mileage: 24000,
+    body_style: 'SUV',
+    color: 'Green',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 26,
+    mpgHighway: 33,
+    features: 'navigation;backup camera;heated seats',
+    description: '2021 Subaru Outback Limited with AWD.',
+    imageUrl: 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b',
+    isAvailable: true
+  },
+  {
+    id: '13',
+    vin: '1HGCM82633A001013',
+    year: 2022,
+    make: 'Hyundai',
+    model: 'Tucson',
+    trim: 'SEL',
+    price: 27500,
+    mileage: 18000,
+    body_style: 'SUV',
+    color: 'Gray',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 26,
+    mpgHighway: 33,
+    features: 'carplay;backup camera',
+    description: '2022 Hyundai Tucson SEL with AWD.',
+    imageUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341',
+    isAvailable: true
+  },
+  {
+    id: '14',
+    vin: '1HGCM82633A001014',
+    year: 2021,
+    make: 'Kia',
+    model: 'Sorento',
+    trim: 'LX',
+    price: 28000,
+    mileage: 32000,
+    body_style: 'SUV',
+    color: 'Blue',
+    drivetrain: 'FWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 7,
+    mpgCity: 24,
+    mpgHighway: 29,
+    features: 'backup camera;third row',
+    description: '2021 Kia Sorento LX with third row seating.',
+    imageUrl: 'https://images.unsplash.com/photo-1581540222194-0def2dda95b8',
+    isAvailable: true
+  },
+  {
+    id: '15',
+    vin: '1HGCM82633A001015',
+    year: 2023,
+    make: 'Volkswagen',
+    model: 'Tiguan',
+    trim: 'SE',
+    price: 30000,
+    mileage: 7000,
+    body_style: 'SUV',
+    color: 'White',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 7,
+    mpgCity: 21,
+    mpgHighway: 29,
+    features: 'carplay;navigation;third row',
+    description: '2023 Volkswagen Tiguan SE with third row.',
+    imageUrl: 'https://images.unsplash.com/photo-1570294820828-5230f2fc9717',
+    isAvailable: true
+  },
+  {
+    id: '16',
+    vin: '1HGCM82633A001016',
+    year: 2022,
+    make: 'Jeep',
+    model: 'Grand Cherokee',
+    trim: 'Limited',
+    price: 38000,
+    mileage: 16000,
+    body_style: 'SUV',
+    color: 'Black',
+    drivetrain: '4WD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 19,
+    mpgHighway: 26,
+    features: 'navigation;heated seats;backup camera',
+    description: '2022 Jeep Grand Cherokee Limited with 4WD.',
+    imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf',
+    isAvailable: true
+  },
+  {
+    id: '17',
+    vin: '1HGCM82633A001017',
+    year: 2023,
+    make: 'BMW',
+    model: 'X5',
+    trim: 'xDrive40i',
+    price: 52000,
+    mileage: 9000,
+    body_style: 'SUV',
+    color: 'Silver',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 21,
+    mpgHighway: 26,
+    features: 'navigation;heated seats;backup camera;blind spot',
+    description: '2023 BMW X5 xDrive40i with luxury features.',
+    imageUrl: 'https://images.unsplash.com/photo-1555215695-3004980ad54e',
+    isAvailable: true
+  },
+  {
+    id: '18',
+    vin: '1HGCM82633A001018',
+    year: 2022,
+    make: 'Mercedes-Benz',
+    model: 'GLC',
+    trim: 'GLC 300',
+    price: 48000,
+    mileage: 14000,
+    body_style: 'SUV',
+    color: 'White',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 22,
+    mpgHighway: 29,
+    features: 'navigation;heated seats;backup camera',
+    description: '2022 Mercedes-Benz GLC 300 with premium features.',
+    imageUrl: 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8',
+    isAvailable: true
+  },
+  {
+    id: '19',
+    vin: '1HGCM82633A001019',
+    year: 2021,
+    make: 'Audi',
+    model: 'Q5',
+    trim: 'Premium Plus',
+    price: 42000,
+    mileage: 22000,
+    body_style: 'SUV',
+    color: 'Gray',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 23,
+    mpgHighway: 28,
+    features: 'navigation;heated seats;backup camera;blind spot',
+    description: '2021 Audi Q5 Premium Plus with AWD.',
+    imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6',
+    isAvailable: true
+  },
+  {
+    id: '20',
+    vin: '1HGCM82633A001020',
+    year: 2023,
+    make: 'Lexus',
+    model: 'RX 350',
+    trim: 'Luxury',
+    price: 50000,
+    mileage: 6000,
+    body_style: 'SUV',
+    color: 'Black',
+    drivetrain: 'AWD',
+    fuelType: 'Gas',
+    transmission: 'Automatic',
+    seats: 5,
+    mpgCity: 20,
+    mpgHighway: 27,
+    features: 'navigation;heated seats;backup camera;blind spot',
+    description: '2023 Lexus RX 350 Luxury with low mileage.',
+    imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb',
+    isAvailable: true
+  }
+];
 
-  if (lines.length < 2) return [];
-
-  const header = splitCSVLine(lines[0]).map(h => h.trim());
-  const rows: Record<string, string>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const cols = splitCSVLine(lines[i]);
-    if (cols.length === 0) continue;
-
-    const row: Record<string, string> = {};
-    for (let j = 0; j < header.length; j++) {
-      row[header[j]] = (cols[j] ?? "").trim();
-    }
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function splitCSVLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-
-    if (ch === '"' && (i === 0 || line[i - 1] !== "\\")) {
-      // toggle quote mode (handles standard CSV quotes)
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (ch === "," && !inQuotes) {
-      out.push(cur);
-      cur = "";
-      continue;
-    }
-
-    cur += ch;
-  }
-  out.push(cur);
-
-  return out;
-}
-
-function toNumber(value: string): number | null {
-  const cleaned = value.replace(/[$,]/g, "").trim();
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-
-function splitFeatures(value: string): string[] {
-  // Your CSV "features" column is usually comma-separated inside quotes.
-  // We’ll split by comma and trim.
-  return value
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean);
-}
-
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    // In this repo, the CSV is stored in client/public/inventory.csv
-    const csvPath = path.join(process.cwd(), "client", "public", "inventory.csv");
-    const csvText = fs.readFileSync(csvPath, "utf8");
-
-    const raw = parseCSV(csvText);
-
-    // Normalize into the shape your UI expects
-    const vehicles = raw.map((r) => ({
-      id: r.id || r._id || `${r.make ?? ""}-${r.model ?? ""}-${r.year ?? ""}-${Math.random()}`,
-      year: toNumber(r.year) ?? undefined,
-      make: r.make || "",
-      model: r.model || "",
-      trim: r.trim || "",
-      price: toNumber(r.price) ?? undefined,
-      miles: toNumber(r.miles) ?? undefined,
-      body: r.body || r.body_style || "",
-      drivetrain: (r.drivetrain || "").toUpperCase(),
-      transmission: r.transmission || "",
-      fuel: r.fuel || "",
-      color: r.color || "",
-      seats: toNumber(r.seats) ?? undefined,
-      mpg_city: toNumber(r.mpg_city) ?? undefined,
-      mpg_hwy: toNumber(r.mpg_hwy) ?? undefined,
-      features: splitFeatures(r.features || ""),
-      image_url: r.image_url || "",
-    }));
-
-    res.status(200).json({ vehicles, count: vehicles.length });
-  } catch (err: any) {
-    res.status(500).json({
-      error: "Failed to load inventory.csv",
-      detail: err?.message ?? String(err),
-    });
-  }
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+  
+  try {
+    return res.status(200).json(sampleCars);
+  } catch (error) {
+    console.error('Error fetching cars:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
 }
