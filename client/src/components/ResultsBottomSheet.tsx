@@ -89,23 +89,50 @@ export default function ResultsBottomSheet(props: {
             <p className="text-center text-muted-foreground py-8">No vehicles match your criteria</p>
           ) : (
             sortedMatches.map((car) => (
-              <Card key={car.id} className="p-4">
-                <h3 className="font-semibold">
-                  {car.year} {car.make} {car.model}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  ${car.price.toLocaleString()} • {car.mileage.toLocaleString()} mi
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {car.drivetrain && (
-                    <span className="text-xs bg-muted px-2 py-1 rounded">{car.drivetrain.toUpperCase()}</span>
-                  )}
-                  {car.fuel_type && (
-                    <span className="text-xs bg-muted px-2 py-1 rounded">{car.fuel_type}</span>
-                  )}
-                </div>
-              </Card>
-            ))
+  <Card key={car.id} className="p-4">
+    {/* IMAGE */}
+    <div className="w-full h-44 mb-3 overflow-hidden rounded-lg bg-muted">
+      <img
+        src={car.imageUrl || car.image_url || ""}
+        alt={`${car.year} ${car.make} ${car.model}`}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        onError={(e) => {
+          // fallback placeholder if URL breaks
+          (e.currentTarget as HTMLImageElement).src =
+            "https://placehold.co/800x450?text=No+Image";
+        }}
+      />
+    </div>
+
+    {/* TITLE */}
+    <h3 className="font-semibold">
+      {car.year} {car.make} {car.model}
+    </h3>
+
+    {/* PRICE + MILES */}
+    <p className="text-sm text-muted-foreground mb-2">
+      ${car.price.toLocaleString()} • {car.mileage.toLocaleString()} mi
+    </p>
+
+    {/* TAGS */}
+    <div className="flex flex-wrap gap-2">
+      {car.drivetrain && (
+        <span className="text-xs bg-muted px-2 py-1 rounded">
+          {String(car.drivetrain).toUpperCase()}
+        </span>
+      )}
+
+      {/* Support BOTH naming styles */}
+      {(car.fuelType || car.fuel_type) && (
+        <span className="text-xs bg-muted px-2 py-1 rounded">
+          {car.fuelType || car.fuel_type}
+        </span>
+      )}
+    </div>
+  </Card>
+))
+
           )}
         </div>
       </div>
