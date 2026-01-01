@@ -17,8 +17,12 @@ export default function ResultsBottomSheet(props: {
   results: FilterResult | null;
     budgetMatches?: Record<string, {payment: number; termMonths: number}>;
   budgetSummary?: string;
+    carPayments?: Record<string, number>;
+  paymentTermMonths?: number;
+  paymentApr?: number;
+  paymentDown?: number;
 }) {
-    const { open, onOpenChange, title, subtitle, results, budgetMatches = {}, budgetSummary = "" } = props;
+    const { open, onOpenChange, title, subtitle, results, budgetMatches = {}, budgetSummary = "" }, carPayments = {}, paymentTermMonths, paymentApr, paymentDown = props;
 
   // Safe defaults
   const safeMatches = Array.isArray(results?.results) ? results.results : [];
@@ -103,6 +107,16 @@ export default function ResultsBottomSheet(props: {
                       ${Math.round(budgetMatches[car.id].payment)}/mo
                     </span>
                     <span className="text-green-200/60">@ {budgetMatches[car.id].termMonths} mo</span>
+                  </div>
+                )}
+                    {carPayments[car.id] != null && paymentTermMonths && paymentApr != null && paymentDown != null && (
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm border border-white/20">
+                    <span className="font-semibold text-white">
+                      ${Math.round(carPayments[car.id])}/mo
+                    </span>
+                    <span className="text-white/60">
+                      @ {paymentTermMonths} mo • {paymentApr}% • ${paymentDown.toLocaleString()} down
+                    </span>
                   </div>
                 )}
     {/* IMAGE */}
