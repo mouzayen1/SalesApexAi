@@ -15,6 +15,8 @@ import { normalizeFilters } from "@/lib/normalizeFilters";
 import { parseBudgetIntent } from "../lib/parseBudgetIntent";
 import { chooseTermForBudget } from "../lib/budgetFit";
 import ResultsBottomSheet from "@/components/ResultsBottomSheet";
+import PaymentCalculatorPanel, { PaymentAssumptions } from "../components/PaymentCalculatorPanel";
+import { calcMonthlyPayment } from "../lib/payment";
 
 // Test phrases for quick testing
 const TEST_PHRASES = [
@@ -39,6 +41,18 @@ export default function Home() {
   const [sheetResults, setSheetResults] = useState<FilterResult | null>(null);
     const [budgetMatches, setBudgetMatches] = useState<Record<string, {payment: number; termMonths: number}>>({});
   const [budgetSummary, setBudgetSummary] = useState<string>("");
+    const [paymentAssumptions, setPaymentAssumptions] = useState<PaymentAssumptions>({
+    down: 5000,
+    targetMonthly: 400,
+    apr: 13.99,
+    termMonths: 72,
+    taxRate: 0.09,
+    fees: 600,
+    tolerance: 25
+  });
+  const [budgetFilterEnabled, setBudgetFilterEnabled] = useState(false);
+  const [carPayments, setCarPayments] = useState<Record<string, number>>({});
+  const [baseFilteredCars, setBaseFilteredCars] = useState<typeof inventory>([]);
 
     // Budget filter defaults
   const DEFAULT_TERMS = [48, 60, 72, 84];
@@ -51,6 +65,60 @@ export default function Home() {
     queryKey: ["/api/cars"],  });
 
   const { toast } = useToast();
+
+    // Compute monthly payments for all visible cars
+  useEffect(() => {
+    const carsToDisplay = sheetResults?.results ?? [];
+    const map: Record<string, number> = {};
+
+    for (const car of carsToDisplay) {
+      const { monthlyPayment } = calcMonthlyPayment({
+        price: car.price,
+        down: paymentAssumptions.down,
+        apr: paymentAssumptions.apr,
+        termMonths: paymentAssumptions.termMonths,
+        taxRate: paymentAssumptions.taxRate,
+        fees: paymentAssumptions.fees
+      });
+      map[car.id] = monthlyPayment;
+    }
+
+    setCarPayments(map);
+  }, [sheetResults, paymentAssumptions]);
+
+    // Apply budget filter
+  function applyBudgetFilter() {
+    setBudgetFilterEnabled(true);
+    
+    const baseList = baseFilteredCars.length > 0 ? baseFilteredCars : (inventory ?? []);
+    
+    const results = baseList.filter((car) => {
+      const { monthlyPayment } = calcMonthlyPayment({
+        price: car.price,
+        down: paymentAssumptions.down,
+        apr: paymentAssumptions.apr,
+        termMonths: paymentAssumptions.termMonths,
+        taxRate: paymentAssumptions.taxRate,
+        fees: paymentAssumptions.fees
+      });
+      return monthlyPayment <= paymentAssumptions.targetMonthly + paymentAssumptions.tolerance;
+    });
+    
+    setSheetResults({ results, filters: currentFilters });
+    setSheetTitle(`Found ${results.length} vehicles`);
+    setSheetSubtitle(`~$${paymentAssumptions.targetMonthly}/mo with $${paymentAssumptions.down} down`);
+    setSheetOpen(true);
+  }
+  
+  // Clear budget filter
+  function clearBudgetFilter() {
+    setBudgetFilterEnabled(false);
+    // Restore to base filtered cars
+    const baseList = baseFilteredCars.length > 0 ? baseFilteredCars : (inventory ?? []);
+    setSheetResults({ results: baseList, filters: currentFilters });
+    setSheetTitle(`Found ${baseList.length} vehicles`);
+    setSheetSubtitle(generateSubtitle(currentFilters));
+  }
 
   const handleTranscription = useCallback((text: string) => {
     console.log("[Home] Transcription received:", text);
@@ -130,6 +198,7 @@ export default function Home() {
     setSheetTitle(title);
     setSheetSubtitle(subtitle);
     setSheetResults(result);
+        setBaseFilteredCars(result.results);
     setSheetOpen(true);
     
     // Set system message banner
@@ -163,6 +232,16 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+            {/* Payment Calculator Panel */}
+      <div className="container mx-auto px-4 py-6">
+        <PaymentCalculatorPanel
+          value={paymentAssumptions}
+          onChange={setPaymentAssumptions}
+          onApplyFilter={applyBudgetFilter}
+          onClearFilter={clearBudgetFilter}
+        />
+      </div>
 
       {systemMessage && (
         <div className="bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800">
@@ -246,6 +325,10 @@ export default function Home() {
         title={sheetTitle}
         subtitle={sheetSubtitle}
         results={sheetResults}
+                carPayments={carPayments}
+        paymentTermMonths={paymentAssumptions.termMonths}
+        paymentApr={paymentAssumptions.apr}
+        paymentDown={paymentAssumptions.down}
                 budgetMatches={budgetMatches}
         budgetSummary={budgetSummary}
       />
