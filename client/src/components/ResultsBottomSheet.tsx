@@ -18,7 +18,7 @@ export default function ResultsBottomSheet(props: {
     budgetMatches?: Record<string, {payment: number; termMonths: number}>;
   budgetSummary?: string;
 }) {
-  const { open, onOpenChange, title, subtitle, results }, budgetMatches, budgetSummary = props;
+  const { open, onOpenChange, title, subtitle, results }, budgetMatches = {}, budgetSummary = "" } = props;
 
   // Safe defaults
   const safeMatches = Array.isArray(results?.results) ? results.results : [];
