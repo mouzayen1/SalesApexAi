@@ -15,8 +15,10 @@ export default function ResultsBottomSheet(props: {
   title: string;
   subtitle: string;
   results: FilterResult | null;
+    budgetMatches?: Record<string, {payment: number; termMonths: number}>;
+  budgetSummary?: string;
 }) {
-  const { open, onOpenChange, title, subtitle, results } = props;
+  const { open, onOpenChange, title, subtitle, results }, budgetMatches, budgetSummary = props;
 
   // Safe defaults
   const safeMatches = Array.isArray(results?.results) ? results.results : [];
@@ -84,12 +86,25 @@ export default function ResultsBottomSheet(props: {
             </Button>
           </div>
         </div>
+                {budgetSummary && (
+          <div className="px-4 py-3 bg-blue-500/10 border-l-4 border-blue-500 text-sm">
+            <p className="text-blue-100">{budgetSummary}</p>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {sortedMatches.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No vehicles match your criteria</p>
           ) : (
             sortedMatches.map((car) => (
   <Card key={car.id} className="p-4">
+                    {budgetMatches?.[car.id] && (
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-green-500/20 px-3 py-1 text-sm border border-green-500/30">
+                    <span className="font-semibold text-green-100">
+                      ${Math.round(budgetMatches[car.id].payment)}/mo
+                    </span>
+                    <span className="text-green-200/60">@ {budgetMatches[car.id].termMonths} mo</span>
+                  </div>
+                )}
     {/* IMAGE */}
     <div className="w-full h-44 mb-3 overflow-hidden rounded-lg bg-muted">
       <img
