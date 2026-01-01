@@ -12,6 +12,8 @@ import type { Message, Car } from "@shared/schema";
 import { extractFilters, type Filters } from "@/lib/extractFilters";
 import { filterInventory, type FilterResult } from "@/lib/filterInventory";
 import { normalizeFilters } from "@/lib/normalizeFilters";
+import { parseBudgetIntent } from "../lib/parseBudgetIntent";
+import { chooseTermForBudget } from "../lib/budgetFit";
 import ResultsBottomSheet from "@/components/ResultsBottomSheet";
 
 // Test phrases for quick testing
@@ -35,6 +37,15 @@ export default function Home() {
   const [sheetTitle, setSheetTitle] = useState("");
   const [sheetSubtitle, setSheetSubtitle] = useState("");
   const [sheetResults, setSheetResults] = useState<FilterResult | null>(null);
+    const [budgetMatches, setBudgetMatches] = useState<Record<string, {payment: number; termMonths: number}>>({});
+  const [budgetSummary, setBudgetSummary] = useState<string>("");
+
+    // Budget filter defaults
+  const DEFAULT_TERMS = [48, 60, 72, 84];
+  const DEFAULT_APR = 13.99;
+  const DEFAULT_TAX_RATE = 0.09;
+  const DEFAULT_FEES = 600;
+  const DEFAULT_TOLERANCE = 25;
 
   const { data: inventory = [] } = useQuery<Car[]>({
     queryKey: ["/api/cars"],  });
@@ -43,6 +54,58 @@ export default function Home() {
 
   const handleTranscription = useCallback((text: string) => {
     console.log("[Home] Transcription received:", text);
+
+        // Check for budget intent first
+    const budget = parseBudgetIntent(text);
+    if (budget) {
+      // Apply existing filter extraction for other criteria (SUV, AWD, etc.)
+      const filters = extractFilters(text) ?? {};
+      const normalized = normalizeFilters(filters);
+      setCurrentFilters(normalized);
+
+      const safeInventory = Array.isArray(inventory) ? inventory : [];
+      const intermediateResult = filterInventory(safeInventory, normalized);
+      const filteredCars = intermediateResult.results || [];
+
+      const down = budget.down ?? 0;
+      const targetMonthly = budget.targetMonthly ?? 0;
+      const apr = budget.apr ?? DEFAULT_APR;
+      const terms = budget.termMonths ? [budget.termMonths] : DEFAULT_TERMS;
+
+      const matches: Record<string, {payment: number; termMonths: number}> = {};
+      const resultCars = [];
+
+      for (const car of filteredCars) {
+        const fit = chooseTermForBudget({
+          price: car.price,
+          down,
+          apr,
+          taxRate: DEFAULT_TAX_RATE,
+          fees: DEFAULT_FEES,
+          targetMonthly,
+          tolerance: DEFAULT_TOLERANCE,
+          terms
+        });
+
+        if (fit) {
+          matches[car.id] = fit;
+          resultCars.push(car);
+        }
+      }
+
+      setBudgetMatches(matches);
+      setBudgetSummary(`Showing ${resultCars.length} matches for ~$${targetMonthly}/mo with $${down} down (${apr}% APR).`);
+      
+      const budgetResult = {
+        results: resultCars,
+        filters: normalized
+      };
+      setSheetResults(budgetResult);
+      setSheetTitle(`Found ${resultCars.length} vehicles`);
+      setSheetSubtitle(generateSubtitle(normalized));
+      setSheetOpen(true);
+      return;
+    }
     
     // Extract filters from transcript
     const filters = extractFilters(text) ?? {};
@@ -183,6 +246,8 @@ export default function Home() {
         title={sheetTitle}
         subtitle={sheetSubtitle}
         results={sheetResults}
+                budgetMatches={budgetMatches}
+        budgetSummary={budgetSummary}
       />
     </div>
   );
