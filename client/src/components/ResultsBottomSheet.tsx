@@ -22,8 +22,7 @@ export default function ResultsBottomSheet(props: {
   paymentApr?: number;
   paymentDown?: number;
 }) {
-    const { open, onOpenChange, title, subtitle, results, budgetMatches = {}, budgetSummary = "" }, carPayments = {}, paymentTermMonths, paymentApr, paymentDown = props;
-
+  const { open, onOpenChange, title, subtitle, results, budgetMatches = {}, budgetSummary = "", carPayments = {}, paymentTermMonths, paymentApr, paymentDown } = props;
   // Safe defaults
   const safeMatches = Array.isArray(results?.results) ? results.results : [];
   const safeFilters = (results?.filters ?? {}) as Filters;
