@@ -10,9 +10,9 @@ import RehashOptimizerPage from '@/pages/rehash-optimizer';
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route component={NotFound} />
-              <Route path="/rehash-optimizer" component={RehashOptimizerPage} />
+      <Route path="/" element={<Home} / />}
+      <Route element={N<otFound} / />}
+              <Route path="/rehash-optimizer" element={<RehashOptimizerPage} / />}
     </Switch>
   );
 }
