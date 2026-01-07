@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Simple in-memory storage - import cars from parent cars.ts
-import { sampleCars } from '../car.jss';
-
+import { sampleCars } from '../cars.js';
 interface SearchParams {
   make?: string;
   minPrice?: number;
