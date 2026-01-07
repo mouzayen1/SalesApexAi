@@ -1,13 +1,13 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCars } from '../lib/api';
-import { useRehashStore } from '../features/rehash/rehashState';
+
 import type { Car } from '@shared/schema';
 
 export function VehicleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const setCurrentDeal = useRehashStore(s => s.setCurrentDeal);
+
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['car', id],
@@ -43,24 +43,8 @@ export function VehicleDetailPage() {
   const car = data as Car;
 
   const handleRehashClick = () => {
-    const dealInput = {
-      vehicleId: String(car.id),
-      vehiclePrice: car.price,
-      vehicleCost: car.cost ?? car.price * 0.9,
-      taxRate: 0.09,
-      fees: 799,
-      downPayment: 2000,
-      tradeAllowance: 0,
-      tradePayoff: 0,
-      backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
-      customerCreditTier: 'Subprime' as const,
-      targetPayment: 550,
-      paymentTolerance: 50,
-      preferredTermMonths: 72,
-    };
-    setCurrentDeal(dealInput);
     navigate('/rehash-optimizer');
-  };
+  
 
   return (
     <div className="mx-auto max-w-4xl p-6">
