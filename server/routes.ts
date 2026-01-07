@@ -21,20 +21,6 @@ export async function registerRoutes(
     }
   });
 
-  // Get car by ID
-  app.get("/api/cars/:id", async (req, res) => {
-    try {
-      const car = await storage.getCarById(req.params.id);
-      if (!car) {
-        return res.status(404).json({ error: "Car not found" });
-      }
-      res.json(car);
-    } catch (error) {
-      console.error("Error fetching car:", error);
-      res.status(500).json({ error: "Failed to fetch car" });
-    }
-  });
-
   // Search cars
   app.get("/api/cars/search", async (req, res) => {
     try {
@@ -54,6 +40,21 @@ export async function registerRoutes(
     }
   });
 
+  // Get car by ID
+  app.get("/api/cars/:id", async (req, res) => {
+    try {
+      const car = await storage.getCarById(req.params.id);
+      if (!car) {
+        return res.status(404).json({ error: "Car not found" });
+      }
+      res.json(car);
+    } catch (error) {
+      console.error("Error fetching car:", error);
+      res.status(500).json({ error: "Failed to fetch car" });
+    }
+  });
+
+  
   // Check if OpenAI is configured
   app.get("/api/config", (req, res) => {
     res.json({ openaiConfigured: isConfigured() });
