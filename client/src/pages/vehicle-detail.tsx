@@ -44,6 +44,7 @@ export function VehicleDetailPage() {
 
   const handleRehashClick = () => {
     navigate('/rehash-optimizer');
+      };
   
 
   return (
