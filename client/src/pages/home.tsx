@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from "@tanstack/react-query";
 import { Car as CarIcon, Trash2, Volume2, VolumeX, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
