@@ -17,6 +17,7 @@ import { chooseTermForBudget } from "../lib/budgetFit";
 import ResultsBottomSheet from "@/components/ResultsBottomSheet";
 import PaymentCalculatorPanel, { PaymentAssumptions } from "../components/PaymentCalculatorPanel";
 import { calcMonthlyPayment } from "../lib/payment";
+import { fetchCars, type CarsSearchParams } from "@/lib/api";
 
 // Test phrases for quick testing
 const TEST_PHRASES = [
@@ -61,9 +62,20 @@ export default function Home() {
   const DEFAULT_FEES = 600;
   const DEFAULT_TOLERANCE = 25;
 
-  const { data: inventory = [] } = useQuery<Car[]>({
-    queryKey: ["/api/cars"],  });
+// Convert normalized filters to API search params
+  const searchParams: CarsSearchParams = {
+    maxPrice: currentFilters.maxPrice,
+    minPrice: currentFilters.minPrice,
+    make: currentFilters.make?.[0], // API expects single make
+    year: currentFilters.minYear,
+    color: currentFilters.color?.[0],
+    fuelType: currentFilters.fuel?.[0],
+  };
 
+  const { data: inventory = [], isLoading, error } = useQuery<Car[]>({
+    queryKey: ["cars", searchParams],
+    queryFn: () => fetchCars(searchParams),
+  });
   const { toast } = useToast();
 
     // Compute monthly payments for all visible cars
@@ -120,7 +132,8 @@ export default function Home() {
     setSheetSubtitle(generateSubtitle(currentFilters));
   }
 
-  const handleTranscription = useCallback((text: string) => {
+  130
+    = useCallback((text: string) => {
     console.log("[Home] Transcription received:", text);
 
         // Check for budget intent first
