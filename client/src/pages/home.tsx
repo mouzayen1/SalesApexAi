@@ -53,8 +53,7 @@ export default function Home() {
   });
   const [budgetFilterEnabled, setBudgetFilterEnabled] = useState(false);
   const [carPayments, setCarPayments] = useState<Record<string, number>>({});
-  const [baseFilteredCars, setBaseFilteredCars] = useState<typeof inventory>([]);
-
+  const [baseFilteredCars, setBaseFilteredCars] = useState<Car[]>([]);
     // Budget filter defaults
   const DEFAULT_TERMS = [48, 60, 72, 84];
   const DEFAULT_APR = 13.99;
