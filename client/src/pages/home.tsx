@@ -112,7 +112,7 @@ export default function Home() {
         taxRate: paymentAssumptions.taxRate,
         fees: paymentAssumptions.fees
       });
-      return monthlyPayment <= paymentAssumptions.targetMonthly + paymentAssumptions.tolerance;
+      return Math.abs(monthlyPayment - paymentAssumptions.targetMonthly) <= paymentAssumptions.tolerance;
     });
     
     setSheetResults({ results, filters: currentFilters });
