@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Comprehensive car inventory data (50 vehicles)
-const sampleCars = [
+export const sampleCars = [
   {
     id: '1',
     vin: '1HGCM82633A001001',
