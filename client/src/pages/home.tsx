@@ -131,8 +131,7 @@ export default function Home() {
     setSheetSubtitle(generateSubtitle(currentFilters));
   }
 
-  130
-    = useCallback((text: string) => {
+      const handleTranscription = useCallback((text: string) => {
     console.log("[Home] Transcription received:", text);
 
         // Check for budget intent first
