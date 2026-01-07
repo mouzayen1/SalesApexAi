@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { Link } from 'react-router-dom';
 import type { Car } from "@shared/schema";
 import type { Filters } from "../lib/extractFilters";
 import type { FilterResult } from "../lib/filterInventory";
@@ -99,7 +100,8 @@ export default function ResultsBottomSheet(props: {
             <p className="text-center text-muted-foreground py-8">No vehicles match your criteria</p>
           ) : (
             sortedMatches.map((car) => (
-  <Card key={car.id} className="p-4">
+  <Link to={`/vehicles/${car.id}`} className="block">
+              <Card key={car.id} className="p-4">
                     {budgetMatches?.[car.id] && (
                   <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-green-500/20 px-3 py-1 text-sm border border-green-500/30">
                     <span className="font-semibold text-green-100">
@@ -159,6 +161,7 @@ export default function ResultsBottomSheet(props: {
       )}
     </div>
   </Card>
+                </Link>
 ))
 
           )}
