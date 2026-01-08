@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
+import React, { us{ useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DealInputs } from '../lib/domain/deal/dealTypes';
 import { evaluateLenders } from '../lib/domain/rehash/rehashEngine';
 import { LenderDecision } from '../lib/domain/lender/lenderTypes';
 
 const RehashOptimizerPage: React.FC = () => {
+    const [searchParams] = useSearchParams();
+  
+  useEffect(() => {
+    const vehiclePrice = searchParams.get('vehiclePrice');
+    if (vehiclePrice) {
+      setDeal(prev => ({ ...prev, vehiclePrice: Number(vehiclePrice) }));
+    }
+  }, [searchParams]);
   const [deal, setDeal] = useState<DealInputs>({
     vehiclePrice: 25000,
     downPayment: 3000,
