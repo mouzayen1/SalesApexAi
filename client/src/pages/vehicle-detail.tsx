@@ -42,11 +42,10 @@ export function VehicleDetailPage() {
 
   const car = data as Car;
 
-  const handleRehashClick = () => {
-    navigate('/rehash-optimizer');
-      };
   
-
+      const handleRehashClick = () => {
+    navigate(`/rehash-optimizer?vehiclePrice=${car.price}`);
+  };
   return (
     <div className="mx-auto max-w-4xl p-6">
       <Link to="/" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
