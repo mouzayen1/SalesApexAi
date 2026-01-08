@@ -1,4 +1,4 @@
-import React, { us{ useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DealInputs } from '../lib/domain/deal/dealTypes';
 import { evaluateLenders } from '../lib/domain/rehash/rehashEngine';
