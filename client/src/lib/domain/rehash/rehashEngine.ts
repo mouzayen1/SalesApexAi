@@ -77,6 +77,7 @@ function evaluateSingleLender(
     apr,
     termMonths,
     monthlyPayment,
+        netCheckToDealer: amountFinanced * 0.90,
     score: 100 - apr,
   };
 }
