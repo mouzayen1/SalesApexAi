@@ -22,6 +22,7 @@ export interface LenderDecision {
   apr?: number;
   termMonths?: number;
   monthlyPayment?: number;
+    netCheckToDealer?: number;
   score: number;
 }
 
