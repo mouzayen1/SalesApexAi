@@ -140,6 +140,7 @@ const RehashOptimizerPage: React.FC = () => {
                         <p>APR: {result.apr}%</p>
                         <p>Term: {result.termMonths} months</p>
                         <p>Monthly Payment: ${result.monthlyPayment?.toFixed(2)}</p>
+                                                <p>Net Check to Dealer: ${result.netCheckToDealer?.toFixed(2)}</p>
                       </div>
                     ) : (
                       <p className="text-white/70">{result.reason}</p>
