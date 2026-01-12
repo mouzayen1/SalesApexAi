@@ -1,17 +1,19 @@
 // client/src/pages/rehash-optimizer.tsx
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { runRehash } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
+import type { Car } from '@shared/schema';
 
 export default function RehashOptimizer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [dealInput, setDealInput] = useState<DealInput>({
-    vehicleId: 'demo-1',
-    vehicleYear: 2020,
-    vehicleMileage: 50000,
-    vehiclePrice: 21995,
-    vehicleCost: 18500,
+    vehicleId: '',
+    vehicleYear: 0,
+    vehicleMileage: 0,
+    vehiclePrice: 0,
+    vehicleCost: 0,
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -23,21 +25,78 @@ export default function RehashOptimizer() {
     paymentTolerance: 50,
   });
 
+  const [vehicleInfo, setVehicleInfo] = useState<{ year: number; make: string; model: string } | null>(null);
   const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  const handleFindLenders = () => {
-    const rehashResults = runRehash(dealInput);
-    setResults(rehashResults);
-  };
+  const handleFindLenders = useCallback(() => {
+    if (dealInput.vehiclePrice > 0) {
+      const rehashResults = runRehash(dealInput);
+      setResults(rehashResults);
+    }
+  }, [dealInput]);
 
+  // Read vehicle data from navigation state on mount
   useEffect(() => {
-    // Auto-run on load with demo data
-    handleFindLenders();
-  }, []);
+    const vehicle = (location.state as { vehicle?: Car })?.vehicle;
+    if (vehicle && !hasInitialized) {
+      const vehicleCost = Math.round(vehicle.price * 0.9); // Estimate dealer cost as 90% of price
+      setDealInput(prev => ({
+        ...prev,
+        vehicleId: String(vehicle.id),
+        vehiclePrice: vehicle.price,
+        vehicleCost: vehicleCost,
+        vehicleYear: vehicle.year,
+        vehicleMileage: vehicle.mileage || 0,
+      }));
+      setVehicleInfo({
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+      });
+      setHasInitialized(true);
+    }
+  }, [location.state, hasInitialized]);
+
+  // Auto-run rehash once vehicle data is loaded
+  useEffect(() => {
+    if (hasInitialized && dealInput.vehiclePrice > 0) {
+      handleFindLenders();
+    }
+  }, [hasInitialized, dealInput.vehiclePrice, handleFindLenders]);
 
   const handleInputChange = (field: keyof DealInput, value: any) => {
     setDealInput(prev => ({ ...prev, [field]: value }));
   };
+
+  // Show a message if no vehicle was passed
+  if (!location.state?.vehicle && !hasInitialized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-white">Rehash Optimizer</h1>
+            <button
+              onClick={() => navigate('/')}
+              className="rounded bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+            >
+              ← Back to Home
+            </button>
+          </div>
+          <div className="rounded-lg bg-slate-800 p-8 text-center shadow-xl">
+            <p className="text-lg text-slate-300">No vehicle selected.</p>
+            <p className="mt-2 text-slate-400">Please select a vehicle from the inventory to optimize the deal.</p>
+            <button
+              onClick={() => navigate('/')}
+              className="mt-6 rounded bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+            >
+              Browse Inventory
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
@@ -52,6 +111,24 @@ export default function RehashOptimizer() {
             ← Back to Home
           </button>
         </div>
+
+        {/* Vehicle Info Banner */}
+        {vehicleInfo && (
+          <div className="mb-6 rounded-lg bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/40 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-300">Optimizing Deal For</p>
+                <h2 className="text-2xl font-bold text-white">
+                  {vehicleInfo.year} {vehicleInfo.make} {vehicleInfo.model}
+                </h2>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-blue-300">Vehicle Price</p>
+                <p className="text-xl font-bold text-white">${dealInput.vehiclePrice.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left Panel - Deal Information */}
@@ -154,7 +231,7 @@ export default function RehashOptimizer() {
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-green-300">🏆 Best Deal</h3>
+                      <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
                       <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
                         HIGHEST NET CHECK
                       </span>
