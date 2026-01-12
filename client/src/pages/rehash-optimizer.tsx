@@ -67,6 +67,7 @@ export default function RehashOptimizer() {
     customerCreditTier: 'subprime',
     targetPayment: 450,
     paymentTolerance: 50,
+    monthlyIncome: undefined,
   });
 
   const [vehicleInfo, setVehicleInfo] = useState<{ year: number; make: string; model: string } | null>(null);
@@ -255,6 +256,21 @@ export default function RehashOptimizer() {
                 />
               </div>
 
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Monthly Gross Income</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                  <input
+                    type="number"
+                    value={dealInput.monthlyIncome || ''}
+                    onChange={e => handleInputChange('monthlyIncome', e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="Optional - for PTI check"
+                    className="w-full rounded bg-slate-700 pl-7 pr-3 py-2 text-white placeholder-slate-500"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Used to calculate Payment-to-Income ratio</p>
+              </div>
+
               <button
                 onClick={handleFindLenders}
                 className="w-full rounded bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
@@ -356,7 +372,32 @@ export default function RehashOptimizer() {
                           </span>
                         </div>
                       )}
+                      {/* PTI Display */}
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-slate-400">PTI (Payment-to-Income)</span>
+                        {results.bestDeal.ptiPercent !== null ? (
+                          <span className={`font-semibold ${results.bestDeal.ptiExceedsLimit ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {results.bestDeal.ptiPercent.toFixed(1)}%
+                            {results.bestDeal.ptiExceedsLimit && ' ⚠️'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 text-xs">
+                            Requires ${results.bestDeal.requiredIncome?.toLocaleString()}+ income
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* PTI Warning */}
+                    {results.bestDeal.ptiWarning && (
+                      <div className="mt-3 pt-3 border-t border-red-600/30">
+                        <div className="rounded-md bg-red-900/30 border border-red-500/50 px-3 py-2">
+                          <p className="text-sm text-red-200">
+                            <span className="font-semibold">⚠️ Income Warning:</span> {results.bestDeal.ptiWarning}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Vehicle Warnings */}
                     {results.bestDeal.vehicleWarnings && results.bestDeal.vehicleWarnings.length > 0 && (
@@ -390,6 +431,7 @@ export default function RehashOptimizer() {
                           <th className="px-3 py-2 text-right font-bold text-green-300">Net Check</th>
                           <th className="px-3 py-2 text-right text-blue-300">Profit</th>
                           <th className="px-3 py-2 text-center">LTV</th>
+                          <th className="px-3 py-2 text-center">PTI</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -432,6 +474,18 @@ export default function RehashOptimizer() {
                               candidate.ltv > 100 ? 'text-amber-400' : 'text-slate-400'
                             }`}>
                               {candidate.ltv.toFixed(0)}%
+                            </td>
+                            <td className={`px-3 py-2 text-center ${
+                              candidate.ptiExceedsLimit ? 'text-red-400' : candidate.ptiPercent !== null ? 'text-emerald-400' : 'text-slate-500'
+                            }`}>
+                              {candidate.ptiPercent !== null ? (
+                                <>
+                                  {candidate.ptiPercent.toFixed(0)}%
+                                  {candidate.ptiExceedsLimit && ' ⚠️'}
+                                </>
+                              ) : (
+                                <span className="text-xs">—</span>
+                              )}
                             </td>
                           </tr>
                         ))}

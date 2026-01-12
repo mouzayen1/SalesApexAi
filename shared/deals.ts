@@ -56,6 +56,7 @@ export interface DealInput {
   targetPayment: number;      // Customer's desired monthly payment
   paymentTolerance: number;   // e.g., 50 means ±$50
   preferredTermMonths?: number;
+  monthlyIncome?: number;     // Customer's monthly gross income for PTI calculation
 }
 
 // Vehicle eligibility result
@@ -93,6 +94,11 @@ export interface DealCandidate {
   // Vehicle eligibility
   vehicleWarnings: string[];  // Warnings like "Theft Risk Penalty Applied"
   advanceMultiplier: number;  // Multiplier applied to advance (1.0 = no penalty)
+  // PTI (Payment-to-Income) validation
+  ptiPercent: number | null;  // Payment-to-Income percentage (null if income not provided)
+  ptiWarning: string | null;  // Warning message if PTI exceeds threshold
+  ptiExceedsLimit: boolean;   // True if PTI exceeds limit for the credit tier
+  requiredIncome: number | null; // Minimum income required to meet PTI threshold
 }
 
 export interface DealConstraintsResult {

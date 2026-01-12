@@ -15,6 +15,92 @@ const THEFT_RISK_YEAR_START = 2011;
 const THEFT_RISK_YEAR_END = 2021;
 const THEFT_RISK_MAKES = ['Kia', 'Hyundai'];
 
+// PTI (Payment-to-Income) thresholds by credit tier
+const PTI_LIMIT_DEEP_SUBPRIME = 0.25;  // 25% max PTI for deep subprime
+const PTI_LIMIT_SUBPRIME = 0.18;       // 18% max PTI for subprime
+const PTI_LIMIT_NEAR_PRIME = 0.15;     // 15% max PTI for near prime
+const PTI_LIMIT_PRIME = 0.12;          // 12% max PTI for prime
+
+/**
+ * Get PTI limit based on credit tier
+ */
+function getPtiLimit(creditTier: DealInput['customerCreditTier']): number {
+  switch (creditTier) {
+    case 'deep_subprime':
+      return PTI_LIMIT_DEEP_SUBPRIME;
+    case 'subprime':
+      return PTI_LIMIT_SUBPRIME;
+    case 'near_prime':
+      return PTI_LIMIT_NEAR_PRIME;
+    case 'prime':
+      return PTI_LIMIT_PRIME;
+    default:
+      return PTI_LIMIT_SUBPRIME;
+  }
+}
+
+/**
+ * Calculate Payment-to-Income ratio
+ */
+export function calculatePTI(payment: number, income: number): number {
+  if (income <= 0) return 0;
+  return payment / income;
+}
+
+/**
+ * Calculate minimum required income to meet PTI threshold
+ */
+function calculateRequiredIncome(payment: number, ptiLimit: number): number {
+  if (ptiLimit <= 0) return 0;
+  return payment / ptiLimit;
+}
+
+interface PtiResult {
+  ptiPercent: number | null;
+  ptiWarning: string | null;
+  ptiExceedsLimit: boolean;
+  requiredIncome: number | null;
+}
+
+/**
+ * Evaluate PTI for a deal payment
+ */
+function evaluatePTI(
+  payment: number,
+  monthlyIncome: number | undefined,
+  creditTier: DealInput['customerCreditTier']
+): PtiResult {
+  const ptiLimit = getPtiLimit(creditTier);
+  const requiredIncome = calculateRequiredIncome(payment, ptiLimit);
+
+  // If no income provided, we can't calculate PTI
+  if (!monthlyIncome || monthlyIncome <= 0) {
+    return {
+      ptiPercent: null,
+      ptiWarning: null,
+      ptiExceedsLimit: false,
+      requiredIncome: Math.ceil(requiredIncome),
+    };
+  }
+
+  const pti = calculatePTI(payment, monthlyIncome);
+  const ptiPercent = pti * 100;
+  const ptiExceedsLimit = pti > ptiLimit;
+
+  let ptiWarning: string | null = null;
+  if (ptiExceedsLimit) {
+    const limitPercent = (ptiLimit * 100).toFixed(0);
+    ptiWarning = `High PTI (${ptiPercent.toFixed(0)}%). Max ${limitPercent}% for ${creditTier.replace('_', ' ')}. Requires income of $${requiredIncome.toLocaleString()}+`;
+  }
+
+  return {
+    ptiPercent,
+    ptiWarning,
+    ptiExceedsLimit,
+    requiredIncome: Math.ceil(requiredIncome),
+  };
+}
+
 /**
  * Check if a vehicle is eligible for a specific lender
  * Returns eligibility status, reasons for rejection, and advance multiplier
@@ -448,6 +534,14 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             smartNote += '. ' + eligibility.warnings.join('. ');
           }
 
+          // Evaluate PTI (Payment-to-Income)
+          const ptiResult = evaluatePTI(payment, deal.monthlyIncome, deal.customerCreditTier);
+
+          // Add PTI warning to adjustments if applicable
+          if (ptiResult.ptiExceedsLimit && ptiResult.ptiWarning) {
+            adjustments.push(ptiResult.ptiWarning);
+          }
+
           const candidate: DealCandidate = {
             lenderId: lender.id,
             lenderName: lender.name,
@@ -474,6 +568,11 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             // Vehicle eligibility fields
             vehicleWarnings: eligibility.warnings,
             advanceMultiplier: eligibility.advanceMultiplier,
+            // PTI fields
+            ptiPercent: ptiResult.ptiPercent,
+            ptiWarning: ptiResult.ptiWarning,
+            ptiExceedsLimit: ptiResult.ptiExceedsLimit,
+            requiredIncome: ptiResult.requiredIncome,
           };
 
           candidates.push(candidate);
