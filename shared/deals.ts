@@ -7,6 +7,38 @@ export interface BackendProducts {
   otherProductsTotal: number;
 }
 
+// Smart product recommendation types
+export type ProductDecisionReason =
+  | 'ltv_high'           // LTV > 100%, vehicle is upside down
+  | 'high_mileage'       // Vehicle has high mileage (out of warranty)
+  | 'vehicle_age'        // Vehicle is old (out of factory warranty)
+  | 'budget_optimization' // Removed to meet payment target
+  | 'lender_declined'    // Removed because lender wouldn't approve
+  | 'risk_based'         // Added due to risk assessment
+  | 'profit_maximization'; // Added to maximize dealer profit
+
+export interface ProductDecision {
+  included: boolean;
+  reason: ProductDecisionReason;
+  note: string;
+}
+
+export interface SmartProductRecommendation {
+  gap: ProductDecision;
+  vsc: ProductDecision;
+}
+
+export interface RiskAssessment {
+  isUpsideDown: boolean;      // LTV > 100%
+  ltvPercent: number;
+  isOutOfWarranty: boolean;   // Age > 3 years OR mileage > 36,000
+  outOfWarrantyReason: 'age' | 'mileage' | 'both' | null;
+  vehicleAgeYears: number;
+  vehicleMileage: number;
+  recommendGap: boolean;
+  recommendVsc: boolean;
+}
+
 export interface DealInput {
   vehicleId: string;
   vehicleYear: number;
@@ -42,6 +74,13 @@ export interface DealCandidate {
   withinGuidelines: boolean;
   reasons: string[];
   adjustments: string[];      // Human-readable changes made
+  // Smart Finance Manager additions
+  hasGap: boolean;
+  hasVsc: boolean;
+  smartNote: string;          // Explanation of the product decision
+  productRecommendation?: SmartProductRecommendation;
+  riskAssessment?: RiskAssessment;
+  optimizationLevel: 'optimal' | 'vsc_stripped' | 'all_stripped';
 }
 
 export interface DealConstraintsResult {

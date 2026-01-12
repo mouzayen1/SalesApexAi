@@ -1,9 +1,52 @@
 // client/src/pages/rehash-optimizer.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { runRehash } from '../../../shared/rehash';
-import type { DealInput, DealCandidate } from '../../../shared/deals';
+import { runRehash, assessRisk, RehashResult } from '../../../shared/rehash';
+import type { DealInput, DealCandidate, RiskAssessment } from '../../../shared/deals';
 import type { Car } from '@shared/schema';
+
+// Product badge component
+function ProductBadge({ hasGap, hasVsc }: { hasGap: boolean; hasVsc: boolean }) {
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {hasGap && (
+        <span className="inline-flex items-center rounded-full bg-emerald-600/80 px-2 py-0.5 text-xs font-semibold text-white">
+          +GAP
+        </span>
+      )}
+      {hasVsc && (
+        <span className="inline-flex items-center rounded-full bg-purple-600/80 px-2 py-0.5 text-xs font-semibold text-white">
+          +VSC
+        </span>
+      )}
+      {!hasGap && !hasVsc && (
+        <span className="inline-flex items-center rounded-full bg-slate-600/80 px-2 py-0.5 text-xs font-semibold text-slate-300">
+          No Products
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Risk assessment badge component
+function RiskBadge({ riskAssessment }: { riskAssessment: RiskAssessment | undefined }) {
+  if (!riskAssessment) return null;
+
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {riskAssessment.isUpsideDown && (
+        <span className="inline-flex items-center rounded-full bg-amber-600/80 px-2 py-0.5 text-xs font-semibold text-white">
+          ⚠️ Upside Down ({riskAssessment.ltvPercent.toFixed(0)}% LTV)
+        </span>
+      )}
+      {riskAssessment.isOutOfWarranty && (
+        <span className="inline-flex items-center rounded-full bg-orange-600/80 px-2 py-0.5 text-xs font-semibold text-white">
+          🔧 Out of Warranty
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function RehashOptimizer() {
   const navigate = useNavigate();
@@ -26,7 +69,7 @@ export default function RehashOptimizer() {
   });
 
   const [vehicleInfo, setVehicleInfo] = useState<{ year: number; make: string; model: string } | null>(null);
-  const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
+  const [results, setResults] = useState<RehashResult | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   const handleFindLenders = useCallback(() => {
@@ -121,10 +164,20 @@ export default function RehashOptimizer() {
                 <h2 className="text-2xl font-bold text-white">
                   {vehicleInfo.year} {vehicleInfo.make} {vehicleInfo.model}
                 </h2>
+                {results?.riskAssessment && (
+                  <div className="mt-2">
+                    <RiskBadge riskAssessment={results.riskAssessment} />
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-sm text-blue-300">Vehicle Price</p>
                 <p className="text-xl font-bold text-white">${dealInput.vehiclePrice.toLocaleString()}</p>
+                {results?.riskAssessment && (
+                  <div className="mt-1 text-xs text-slate-400">
+                    {results.riskAssessment.vehicleAgeYears} years old • {results.riskAssessment.vehicleMileage.toLocaleString()} mi
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -230,12 +283,25 @@ export default function RehashOptimizer() {
                 <>
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
+                        <ProductBadge hasGap={results.bestDeal.hasGap} hasVsc={results.bestDeal.hasVsc} />
+                      </div>
                       <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
                         HIGHEST NET CHECK
                       </span>
                     </div>
+
+                    {/* Smart Note */}
+                    {results.bestDeal.smartNote && (
+                      <div className="mb-4 rounded-md bg-slate-700/50 px-3 py-2 border-l-4 border-blue-400">
+                        <p className="text-sm text-blue-200">
+                          <span className="font-semibold">💡 Smart Decision:</span> {results.bestDeal.smartNote}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="text-slate-400">Lender</div>
@@ -266,6 +332,20 @@ export default function RehashOptimizer() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Backend Products Breakdown */}
+                    <div className="mt-4 pt-3 border-t border-green-600/30">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400">Backend Products Total</span>
+                        <span className="font-semibold text-white">${results.bestDeal.backendTotal.toFixed(0)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-slate-400">LTV</span>
+                        <span className={`font-semibold ${results.bestDeal.ltv > 100 ? 'text-amber-400' : 'text-white'}`}>
+                          {results.bestDeal.ltv.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* All Options Table */}
@@ -277,11 +357,11 @@ export default function RehashOptimizer() {
                       <thead className="bg-slate-700 text-slate-200">
                         <tr>
                           <th className="px-3 py-2 text-left">Lender</th>
+                          <th className="px-3 py-2 text-center">Products</th>
                           <th className="px-3 py-2 text-center">Term</th>
                           <th className="px-3 py-2 text-right">Payment</th>
                           <th className="px-3 py-2 text-right font-bold text-green-300">Net Check</th>
                           <th className="px-3 py-2 text-right text-blue-300">Profit</th>
-                          <th className="px-3 py-2 text-right">Amt Financed</th>
                           <th className="px-3 py-2 text-center">LTV</th>
                         </tr>
                       </thead>
@@ -292,14 +372,22 @@ export default function RehashOptimizer() {
                             className={`border-t border-slate-700 ${
                               index === 0 ? 'bg-green-900/20' : index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-850'
                             }`}
+                            title={candidate.smartNote}
                           >
                             <td className="px-3 py-2 text-white">
-                              {candidate.lenderName}
-                              {index === 0 && (
-                                <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-bold">
-                                  BEST
+                              <div className="flex flex-col">
+                                <span>
+                                  {candidate.lenderName}
+                                  {index === 0 && (
+                                    <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-bold">
+                                      BEST
+                                    </span>
+                                  )}
                                 </span>
-                              )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <ProductBadge hasGap={candidate.hasGap} hasVsc={candidate.hasVsc} />
                             </td>
                             <td className="px-3 py-2 text-center text-slate-300">{candidate.termMonths} mo</td>
                             <td className="px-3 py-2 text-right font-semibold text-white">
@@ -313,10 +401,9 @@ export default function RehashOptimizer() {
                             }`}>
                               ${candidate.dealerProfit.toFixed(0)}
                             </td>
-                            <td className="px-3 py-2 text-right text-slate-300">
-                              ${candidate.amountFinanced.toFixed(0)}
-                            </td>
-                            <td className="px-3 py-2 text-center text-slate-400">
+                            <td className={`px-3 py-2 text-center ${
+                              candidate.ltv > 100 ? 'text-amber-400' : 'text-slate-400'
+                            }`}>
                               {candidate.ltv.toFixed(0)}%
                             </td>
                           </tr>
