@@ -6,12 +6,18 @@ import type { DealInput, DealCandidate } from '../../../shared/deals';
 
 export default function RehashOptimizer() {
   const navigate = useNavigate();
+  // Vehicle display info (separate from DealInput for UI display)
+  const [vehicleInfo, setVehicleInfo] = useState({
+    make: 'Toyota',
+    model: 'RAV4 XLE',
+  });
+
   const [dealInput, setDealInput] = useState<DealInput>({
     vehicleId: 'demo-1',
-    vehicleYear: 2020,
-    vehicleMileage: 50000,
-    vehiclePrice: 21995,
-    vehicleCost: 18500,
+    vehicleYear: 2021,
+    vehicleMileage: 42000,
+    vehiclePrice: 28995,
+    vehicleCost: 24646,
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -58,6 +64,32 @@ export default function RehashOptimizer() {
           <div className="rounded-lg bg-slate-800 p-6 shadow-xl">
             <h2 className="mb-4 text-xl font-bold text-white">Deal Information</h2>
 
+            {/* Selected Vehicle Display */}
+            <div className="mb-4 rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+              <div className="text-xs text-slate-400">Selected Vehicle</div>
+              <div className="text-lg font-bold text-white">
+                {dealInput.vehicleYear} {vehicleInfo.make} {vehicleInfo.model}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-slate-400">Price: </span>
+                  <span className="text-green-400">${dealInput.vehiclePrice.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400">Cost: </span>
+                  <span className="text-yellow-400">${dealInput.vehicleCost.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400">Year: </span>
+                  <span className="text-white">{dealInput.vehicleYear}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400">Miles: </span>
+                  <span className="text-white">{dealInput.vehicleMileage.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm text-slate-300">Vehicle Price</label>
@@ -67,6 +99,17 @@ export default function RehashOptimizer() {
                   onChange={e => handleInputChange('vehiclePrice', Number(e.target.value))}
                   className="w-full rounded bg-slate-700 px-3 py-2 text-white"
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Cost (Dealer Cost)</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleCost}
+                  onChange={e => handleInputChange('vehicleCost', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+                <div className="mt-1 text-xs text-slate-500">Used for profit calculation. Auto-populated from inventory.</div>
               </div>
 
               <div>
@@ -188,6 +231,11 @@ export default function RehashOptimizer() {
                           ${results.bestDeal.dealerProfit.toFixed(0)}
                         </div>
                       </div>
+                    </div>
+                    {/* Front & Back End Gross */}
+                    <div className="mt-3 border-t border-green-700/50 pt-3 text-xs text-slate-400">
+                      <div>Front Gross: ${results.bestDeal.dealerFrontGross.toFixed(0)} (Price - Cost)</div>
+                      <div>Back End Gross: ${results.bestDeal.dealerBackEndGross.toFixed(0)}</div>
                     </div>
                   </div>
 
