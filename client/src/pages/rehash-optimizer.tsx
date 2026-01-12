@@ -3,9 +3,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { runRehash } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
+import type { Car } from '../../../shared/schema';
 
 export default function RehashOptimizer() {
   const navigate = useNavigate();
+
+  // Inventory state
+  const [inventory, setInventory] = useState<Car[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [isLoadingInventory, setIsLoadingInventory] = useState(true);
+
   const [dealInput, setDealInput] = useState<DealInput>({
     vehicleId: 'demo-1',
     vehicleYear: 2020,
@@ -25,19 +32,63 @@ export default function RehashOptimizer() {
 
   const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
 
+  // Fetch inventory on mount
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        setIsLoadingInventory(true);
+        const response = await fetch('/api/cars');
+        if (response.ok) {
+          const cars = await response.json();
+          setInventory(cars);
+          // Auto-select first vehicle if available
+          if (cars.length > 0) {
+            handleVehicleSelect(cars[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch inventory:', error);
+      } finally {
+        setIsLoadingInventory(false);
+      }
+    };
+    fetchInventory();
+  }, []);
+
+  // Handle vehicle selection from inventory
+  const handleVehicleSelect = (vehicle: Car) => {
+    // Use vehicle.cost if available, otherwise fall back to price * 0.9
+    const vehicleCost = vehicle.cost ?? Math.round(vehicle.price * 0.9);
+
+    setSelectedVehicleId(vehicle.id);
+    setDealInput(prev => ({
+      ...prev,
+      vehicleId: vehicle.id,
+      vehicleYear: vehicle.year,
+      vehicleMileage: vehicle.mileage,
+      vehiclePrice: vehicle.price,
+      vehicleCost: vehicleCost,
+    }));
+  };
+
   const handleFindLenders = () => {
     const rehashResults = runRehash(dealInput);
     setResults(rehashResults);
   };
 
   useEffect(() => {
-    // Auto-run on load with demo data
-    handleFindLenders();
-  }, []);
+    // Auto-run rehash when dealInput changes (after initial load)
+    if (!isLoadingInventory) {
+      handleFindLenders();
+    }
+  }, [dealInput, isLoadingInventory]);
 
   const handleInputChange = (field: keyof DealInput, value: any) => {
     setDealInput(prev => ({ ...prev, [field]: value }));
   };
+
+  // Get selected vehicle info for display
+  const selectedVehicle = inventory.find(v => v.id === selectedVehicleId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
@@ -59,6 +110,60 @@ export default function RehashOptimizer() {
             <h2 className="mb-4 text-xl font-bold text-white">Deal Information</h2>
 
             <div className="space-y-4">
+              {/* Vehicle Selection */}
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Select Vehicle from Inventory</label>
+                <select
+                  value={selectedVehicleId}
+                  onChange={e => {
+                    const vehicle = inventory.find(v => v.id === e.target.value);
+                    if (vehicle) handleVehicleSelect(vehicle);
+                  }}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                  disabled={isLoadingInventory}
+                >
+                  {isLoadingInventory ? (
+                    <option>Loading inventory...</option>
+                  ) : inventory.length === 0 ? (
+                    <option>No vehicles available</option>
+                  ) : (
+                    inventory.map(vehicle => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.year} {vehicle.make} {vehicle.model} - ${vehicle.price.toLocaleString()}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Selected Vehicle Info */}
+              {selectedVehicle && (
+                <div className="rounded bg-slate-700/50 p-3 text-sm">
+                  <div className="text-slate-400">Selected Vehicle</div>
+                  <div className="font-semibold text-white">
+                    {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.trim}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-400">Price: </span>
+                      <span className="text-green-400">${dealInput.vehiclePrice.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Cost: </span>
+                      <span className="text-yellow-400">${dealInput.vehicleCost.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Year: </span>
+                      <span className="text-white">{dealInput.vehicleYear}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Miles: </span>
+                      <span className="text-white">{dealInput.vehicleMileage.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="mb-1 block text-sm text-slate-300">Vehicle Price</label>
                 <input
@@ -67,6 +172,19 @@ export default function RehashOptimizer() {
                   onChange={e => handleInputChange('vehiclePrice', Number(e.target.value))}
                   className="w-full rounded bg-slate-700 px-3 py-2 text-white"
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Cost (Dealer Cost)</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleCost}
+                  onChange={e => handleInputChange('vehicleCost', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Used for profit calculation. Auto-populated from inventory.
+                </p>
               </div>
 
               <div>
@@ -154,7 +272,7 @@ export default function RehashOptimizer() {
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-green-300">🏆 Best Deal</h3>
+                      <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
                       <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
                         HIGHEST NET CHECK
                       </span>
@@ -188,6 +306,11 @@ export default function RehashOptimizer() {
                           ${results.bestDeal.dealerProfit.toFixed(0)}
                         </div>
                       </div>
+                    </div>
+                    {/* Profit breakdown */}
+                    <div className="mt-3 border-t border-slate-600 pt-3 text-xs text-slate-400">
+                      <div>Front Gross: ${results.bestDeal.dealerFrontGross.toFixed(0)} (Price - Cost)</div>
+                      <div>Back End Gross: ${results.bestDeal.dealerBackEndGross.toFixed(0)}</div>
                     </div>
                   </div>
 

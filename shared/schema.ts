@@ -11,6 +11,7 @@ export const cars = pgTable("cars", {
   trim: text("trim").notNull(),
   year: integer("year").notNull(),
   price: integer("price").notNull(),
+  cost: integer("cost").notNull(),  // Dealer cost for profit calculation
   mileage: integer("mileage").notNull(),
     body_style: text("body_style").notNull(),
   seats: integer("seats").notNull(),
