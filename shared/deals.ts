@@ -13,6 +13,7 @@ export interface DealInput {
   vehicleMileage: number;
   vehiclePrice: number;      // Selling price (before tax/fees)
   vehicleCost: number;        // Dealer cost (for profit calculation)
+  bookValue?: number;         // Vehicle book value (if not provided, estimated as cost * 1.15)
   taxRate: number;            // e.g., 0.09 for 9%
   fees: number;               // Doc + DMV + misc dealer fees
   downPayment: number;        // Customer cash down
@@ -23,6 +24,11 @@ export interface DealInput {
   targetPayment: number;      // Customer's desired monthly payment
   paymentTolerance: number;   // e.g., 50 means ±$50
   preferredTermMonths?: number;
+}
+
+export interface IncludedProducts {
+  gap: boolean;
+  vsc: boolean;
 }
 
 export interface DealCandidate {
@@ -42,6 +48,8 @@ export interface DealCandidate {
   withinGuidelines: boolean;
   reasons: string[];
   adjustments: string[];      // Human-readable changes made
+  includedProducts: IncludedProducts;  // Which backend products are active
+  optimizationReason: string;          // Why products were included/dropped
 }
 
 export interface DealConstraintsResult {

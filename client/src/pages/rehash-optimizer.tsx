@@ -4,12 +4,59 @@ import { useNavigate } from 'react-router-dom';
 import { runRehash } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
 
+function ProductBadges({ candidate }: { candidate: DealCandidate }) {
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {candidate.includedProducts.gap && (
+        <span className="rounded bg-purple-600 px-2 py-0.5 text-xs font-bold text-white">
+          +GAP
+        </span>
+      )}
+      {candidate.includedProducts.vsc && (
+        <span className="rounded bg-indigo-600 px-2 py-0.5 text-xs font-bold text-white">
+          +VSC
+        </span>
+      )}
+      {!candidate.includedProducts.gap && !candidate.includedProducts.vsc && (
+        <span className="rounded bg-slate-600 px-2 py-0.5 text-xs font-medium text-slate-300">
+          No Backend
+        </span>
+      )}
+    </div>
+  );
+}
+
+function OptimizationBadge({ candidate }: { candidate: DealCandidate }) {
+  const hasGap = candidate.includedProducts.gap;
+  const hasVsc = candidate.includedProducts.vsc;
+
+  if (hasGap && hasVsc) {
+    return (
+      <span className="rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 px-3 py-1 text-xs font-bold text-white">
+        DREAM DEAL
+      </span>
+    );
+  } else if (hasGap || hasVsc) {
+    return (
+      <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-white">
+        SAVE DEAL
+      </span>
+    );
+  } else {
+    return (
+      <span className="rounded-full bg-slate-500 px-3 py-1 text-xs font-bold text-white">
+        BARE BONES
+      </span>
+    );
+  }
+}
+
 export default function RehashOptimizer() {
   const navigate = useNavigate();
   const [dealInput, setDealInput] = useState<DealInput>({
     vehicleId: 'demo-1',
     vehicleYear: 2020,
-    vehicleMileage: 50000,
+    vehicleMileage: 55000,
     vehiclePrice: 21995,
     vehicleCost: 18500,
     taxRate: 0.09,
@@ -60,11 +107,41 @@ export default function RehashOptimizer() {
 
             <div className="space-y-4">
               <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Year</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleYear}
+                  onChange={e => handleInputChange('vehicleYear', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Mileage</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleMileage}
+                  onChange={e => handleInputChange('vehicleMileage', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
                 <label className="mb-1 block text-sm text-slate-300">Vehicle Price</label>
                 <input
                   type="number"
                   value={dealInput.vehiclePrice}
                   onChange={e => handleInputChange('vehiclePrice', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Cost (Dealer)</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleCost}
+                  onChange={e => handleInputChange('vehicleCost', Number(e.target.value))}
                   className="w-full rounded bg-slate-700 px-3 py-2 text-white"
                 />
               </div>
@@ -153,13 +230,26 @@ export default function RehashOptimizer() {
                 <>
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-green-300">🏆 Best Deal</h3>
-                      <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
-                        HIGHEST NET CHECK
-                      </span>
+                    <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
+                        <ProductBadges candidate={results.bestDeal} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <OptimizationBadge candidate={results.bestDeal} />
+                        <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
+                          HIGHEST NET CHECK
+                        </span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+
+                    {/* Optimization Reason */}
+                    <div className="mb-4 rounded bg-slate-800/50 p-2">
+                      <div className="text-xs text-slate-400">Smart Optimization</div>
+                      <div className="text-sm text-amber-300">{results.bestDeal.optimizationReason}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-3">
                       <div>
                         <div className="text-slate-400">Lender</div>
                         <div className="text-lg font-bold text-white">{results.bestDeal.lenderName}</div>
@@ -189,22 +279,30 @@ export default function RehashOptimizer() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Backend Products Summary */}
+                    <div className="mt-4 border-t border-slate-700 pt-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400">Backend Total:</span>
+                        <span className="font-bold text-purple-300">${results.bestDeal.backendTotal.toFixed(0)}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* All Options Table */}
                   <div className="overflow-x-auto">
                     <h3 className="mb-3 text-lg font-semibold text-white">
-                      All Options (Sorted by Net Check)
+                      All Options (Sorted by Priority & Net Check)
                     </h3>
                     <table className="w-full text-sm">
                       <thead className="bg-slate-700 text-slate-200">
                         <tr>
                           <th className="px-3 py-2 text-left">Lender</th>
+                          <th className="px-3 py-2 text-left">Products</th>
                           <th className="px-3 py-2 text-center">Term</th>
                           <th className="px-3 py-2 text-right">Payment</th>
                           <th className="px-3 py-2 text-right font-bold text-green-300">Net Check</th>
                           <th className="px-3 py-2 text-right text-blue-300">Profit</th>
-                          <th className="px-3 py-2 text-right">Amt Financed</th>
                           <th className="px-3 py-2 text-center">LTV</th>
                         </tr>
                       </thead>
@@ -217,12 +315,17 @@ export default function RehashOptimizer() {
                             }`}
                           >
                             <td className="px-3 py-2 text-white">
-                              {candidate.lenderName}
-                              {index === 0 && (
-                                <span className="ml-2 rounded bg-green-600 px-2 py-0.5 text-xs font-bold">
-                                  BEST
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {candidate.lenderName}
+                                {index === 0 && (
+                                  <span className="rounded bg-green-600 px-2 py-0.5 text-xs font-bold">
+                                    BEST
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <ProductBadges candidate={candidate} />
                             </td>
                             <td className="px-3 py-2 text-center text-slate-300">{candidate.termMonths} mo</td>
                             <td className="px-3 py-2 text-right font-semibold text-white">
@@ -236,9 +339,6 @@ export default function RehashOptimizer() {
                             }`}>
                               ${candidate.dealerProfit.toFixed(0)}
                             </td>
-                            <td className="px-3 py-2 text-right text-slate-300">
-                              ${candidate.amountFinanced.toFixed(0)}
-                            </td>
                             <td className="px-3 py-2 text-center text-slate-400">
                               {candidate.ltv.toFixed(0)}%
                             </td>
@@ -246,6 +346,25 @@ export default function RehashOptimizer() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Optimization Legend */}
+                  <div className="mt-6 rounded bg-slate-700/50 p-4">
+                    <h4 className="mb-2 text-sm font-semibold text-slate-300">Smart Product Optimization Legend</h4>
+                    <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-3">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-purple-600 px-2 py-0.5 font-bold text-white">+GAP</span>
+                        <span className="text-slate-400">$895 - Auto-added when LTV {">"} 100%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-indigo-600 px-2 py-0.5 font-bold text-white">+VSC</span>
+                        <span className="text-slate-400">$1,800 - Auto-added for high mileage/age</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-slate-600 px-2 py-0.5 font-medium text-slate-300">No Backend</span>
+                        <span className="text-slate-400">Fallback for tight constraints</span>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
