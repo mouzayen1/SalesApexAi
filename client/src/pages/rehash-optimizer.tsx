@@ -54,6 +54,7 @@ export default function RehashOptimizer() {
   const [dealInput, setDealInput] = useState<DealInput>({
     vehicleId: '',
     vehicleYear: 0,
+    vehicleMake: '',
     vehicleMileage: 0,
     vehiclePrice: 0,
     vehicleCost: 0,
@@ -90,6 +91,7 @@ export default function RehashOptimizer() {
         vehiclePrice: vehicle.price,
         vehicleCost: vehicleCost,
         vehicleYear: vehicle.year,
+        vehicleMake: vehicle.make || '',
         vehicleMileage: vehicle.mileage || 0,
       }));
       setVehicleInfo({
@@ -345,7 +347,32 @@ export default function RehashOptimizer() {
                           {results.bestDeal.ltv.toFixed(0)}%
                         </span>
                       </div>
+                      {results.bestDeal.advanceMultiplier !== 1.0 && (
+                        <div className="flex items-center justify-between text-sm mt-1">
+                          <span className="text-slate-400">Advance Adjustment</span>
+                          <span className={`font-semibold ${results.bestDeal.advanceMultiplier < 1 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {results.bestDeal.advanceMultiplier < 1 ? '-' : '+'}
+                            {Math.abs((1 - results.bestDeal.advanceMultiplier) * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Vehicle Warnings */}
+                    {results.bestDeal.vehicleWarnings && results.bestDeal.vehicleWarnings.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-amber-600/30">
+                        <div className="flex flex-wrap gap-2">
+                          {results.bestDeal.vehicleWarnings.map((warning, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center rounded-full bg-amber-600/30 border border-amber-500/50 px-2 py-1 text-xs text-amber-200"
+                            >
+                              ⚠️ {warning}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* All Options Table */}

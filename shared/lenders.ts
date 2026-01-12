@@ -11,6 +11,24 @@ export interface LenderTierPricing {
   maxLtvPercent: number;
 }
 
+// Vehicle restrictions for lender eligibility
+export interface VehicleRestrictions {
+  maxAge: number;           // Maximum vehicle age in years
+  maxMileage: number;       // Maximum vehicle mileage
+  excludedMakes: string[];  // Makes that are not eligible
+}
+
+// Vehicle preferences that affect advance calculations
+export interface VehiclePreference {
+  make: string;
+  multiplier: number;       // Applied to base advance (e.g., 0.80 = 20% penalty)
+  reason?: string;          // Optional explanation
+  yearRange?: {             // Optional year range for the preference
+    start: number;
+    end: number;
+  };
+}
+
 export interface LenderConfig {
   id: string;
   name: string;
@@ -24,6 +42,9 @@ export interface LenderConfig {
   maxMiles: number;
   lenderFeePercent: number;
   pricingGrid: LenderTierPricing[];
+  // New vehicle eligibility fields
+  vehicleRestrictions: VehicleRestrictions;
+  vehiclePreferences: VehiclePreference[];
   validateDeal: (deal: DealInput, amountFinanced: number) => { isValid: boolean; reasons: string[] };
 }
 
@@ -37,8 +58,8 @@ export const LENDERS: LenderConfig[] = [
     maxAmountFinanced: 45000,
     maxBackendTotal: 3500,
     maxBackendPercentOfAmount: 25,
-    maxVehicleAgeYears: 12,
-    maxMiles: 150000,
+    maxVehicleAgeYears: 20,
+    maxMiles: 180000,
     lenderFeePercent: 3.0,
     pricingGrid: [
       {
@@ -76,6 +97,25 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 105,
         maxAdvancePercent: 120,
         maxLtvPercent: 120,
+      },
+    ],
+    vehicleRestrictions: {
+      maxAge: 20,
+      maxMileage: 180000,
+      excludedMakes: ['Daewoo', 'Ferrari'],
+    },
+    vehiclePreferences: [
+      {
+        make: 'Kia',
+        multiplier: 0.90,
+        reason: 'Theft Risk Penalty',
+        yearRange: { start: 2011, end: 2021 },
+      },
+      {
+        make: 'Hyundai',
+        multiplier: 0.90,
+        reason: 'Theft Risk Penalty',
+        yearRange: { start: 2011, end: 2021 },
       },
     ],
     validateDeal: (deal, amountFinanced) => {
@@ -137,6 +177,35 @@ export const LENDERS: LenderConfig[] = [
         maxLtvPercent: 125,
       },
     ],
+    vehicleRestrictions: {
+      maxAge: 15,
+      maxMileage: 180000,
+      excludedMakes: ['Land Rover', 'Jaguar', 'Saab', 'Suzuki'],
+    },
+    vehiclePreferences: [
+      {
+        make: 'Toyota',
+        multiplier: 1.05,
+        reason: 'Preferred Make Bonus',
+      },
+      {
+        make: 'Honda',
+        multiplier: 1.05,
+        reason: 'Preferred Make Bonus',
+      },
+      {
+        make: 'Kia',
+        multiplier: 0.80,
+        reason: 'High Theft Risk Penalty',
+        yearRange: { start: 2011, end: 2021 },
+      },
+      {
+        make: 'Hyundai',
+        multiplier: 0.80,
+        reason: 'High Theft Risk Penalty',
+        yearRange: { start: 2011, end: 2021 },
+      },
+    ],
     validateDeal: (deal, amountFinanced) => {
       const reasons: string[] = [];
       if (amountFinanced < 4000) reasons.push('Below Western Funding minimum amount financed ($4,000)');
@@ -153,8 +222,8 @@ export const LENDERS: LenderConfig[] = [
     maxAmountFinanced: 50000,
     maxBackendTotal: 3000,
     maxBackendPercentOfAmount: 20,
-    maxVehicleAgeYears: 10,
-    maxMiles: 140000,
+    maxVehicleAgeYears: 15,
+    maxMiles: 150000,
     lenderFeePercent: 2.0,
     pricingGrid: [
       {
@@ -194,6 +263,12 @@ export const LENDERS: LenderConfig[] = [
         maxLtvPercent: 120,
       },
     ],
+    vehicleRestrictions: {
+      maxAge: 15,
+      maxMileage: 150000,
+      excludedMakes: ['Land Rover'],
+    },
+    vehiclePreferences: [],
     validateDeal: (deal, amountFinanced) => {
       const reasons: string[] = [];
       if (deal.downPayment < 500) reasons.push('UAC requires at least $500 down payment');

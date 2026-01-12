@@ -42,6 +42,7 @@ export interface RiskAssessment {
 export interface DealInput {
   vehicleId: string;
   vehicleYear: number;
+  vehicleMake: string;        // Vehicle make (e.g., 'Toyota', 'Kia')
   vehicleMileage: number;
   vehiclePrice: number;      // Selling price (before tax/fees)
   vehicleCost: number;        // Dealer cost (for profit calculation)
@@ -55,6 +56,14 @@ export interface DealInput {
   targetPayment: number;      // Customer's desired monthly payment
   paymentTolerance: number;   // e.g., 50 means ±$50
   preferredTermMonths?: number;
+}
+
+// Vehicle eligibility result
+export interface VehicleEligibilityResult {
+  isEligible: boolean;
+  reasons: string[];
+  advanceMultiplier: number;  // 1.0 = no adjustment, 0.80 = 20% penalty
+  warnings: string[];         // e.g., "Theft Risk: Kia 2015"
 }
 
 export interface DealCandidate {
@@ -81,6 +90,9 @@ export interface DealCandidate {
   productRecommendation?: SmartProductRecommendation;
   riskAssessment?: RiskAssessment;
   optimizationLevel: 'optimal' | 'vsc_stripped' | 'all_stripped';
+  // Vehicle eligibility
+  vehicleWarnings: string[];  // Warnings like "Theft Risk Penalty Applied"
+  advanceMultiplier: number;  // Multiplier applied to advance (1.0 = no penalty)
 }
 
 export interface DealConstraintsResult {

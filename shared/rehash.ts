@@ -1,6 +1,6 @@
 // shared/rehash.ts
-import type { DealInput, DealCandidate, RiskAssessment, SmartProductRecommendation } from './deals';
-import { LENDERS, LenderConfig } from './lenders';
+import type { DealInput, DealCandidate, RiskAssessment, VehicleEligibilityResult } from './deals';
+import { LENDERS, LenderConfig, VehiclePreference } from './lenders';
 
 // Product pricing constants
 const GAP_PRICE = 900;
@@ -9,6 +9,101 @@ const VSC_PRICE = 1800;
 // Warranty thresholds (factory warranty typically 3 years / 36,000 miles)
 const WARRANTY_AGE_THRESHOLD = 3;
 const WARRANTY_MILEAGE_THRESHOLD = 36000;
+
+// Kia/Hyundai theft risk years (2011-2021 models without immobilizers)
+const THEFT_RISK_YEAR_START = 2011;
+const THEFT_RISK_YEAR_END = 2021;
+const THEFT_RISK_MAKES = ['Kia', 'Hyundai'];
+
+/**
+ * Check if a vehicle is eligible for a specific lender
+ * Returns eligibility status, reasons for rejection, and advance multiplier
+ */
+export function isVehicleEligible(deal: DealInput, lender: LenderConfig): VehicleEligibilityResult {
+  const currentYear = new Date().getFullYear();
+  const vehicleAge = currentYear - deal.vehicleYear;
+  const vehicleMake = deal.vehicleMake || '';
+  const normalizedMake = vehicleMake.trim();
+
+  const reasons: string[] = [];
+  const warnings: string[] = [];
+  let advanceMultiplier = 1.0;
+
+  // Check vehicle restrictions
+  const restrictions = lender.vehicleRestrictions;
+
+  // Check vehicle age
+  if (vehicleAge > restrictions.maxAge) {
+    reasons.push(`Vehicle too old: ${vehicleAge} years (max ${restrictions.maxAge} years for ${lender.name})`);
+  }
+
+  // Check vehicle mileage
+  if (deal.vehicleMileage > restrictions.maxMileage) {
+    reasons.push(`Mileage too high: ${deal.vehicleMileage.toLocaleString()} mi (max ${restrictions.maxMileage.toLocaleString()} mi for ${lender.name})`);
+  }
+
+  // Check excluded makes (case-insensitive)
+  const isExcludedMake = restrictions.excludedMakes.some(
+    excluded => excluded.toLowerCase() === normalizedMake.toLowerCase()
+  );
+  if (isExcludedMake) {
+    reasons.push(`${normalizedMake} not eligible with ${lender.name}`);
+  }
+
+  // Apply vehicle preferences (multipliers)
+  const preferences = lender.vehiclePreferences;
+  for (const pref of preferences) {
+    const makeMatches = pref.make.toLowerCase() === normalizedMake.toLowerCase();
+    if (!makeMatches) continue;
+
+    // Check if year range applies (for theft risk vehicles)
+    let yearInRange = true;
+    if (pref.yearRange) {
+      yearInRange = deal.vehicleYear >= pref.yearRange.start && deal.vehicleYear <= pref.yearRange.end;
+    }
+
+    if (yearInRange) {
+      advanceMultiplier = Math.min(advanceMultiplier, pref.multiplier);
+
+      if (pref.multiplier < 1.0) {
+        const penaltyPercent = ((1 - pref.multiplier) * 100).toFixed(0);
+        warnings.push(`${pref.reason || 'Risk Adjustment'}: ${normalizedMake} ${deal.vehicleYear} (-${penaltyPercent}% advance)`);
+      } else if (pref.multiplier > 1.0) {
+        const bonusPercent = ((pref.multiplier - 1) * 100).toFixed(0);
+        warnings.push(`${pref.reason || 'Preferred Make'}: ${normalizedMake} (+${bonusPercent}% advance)`);
+      }
+    }
+  }
+
+  // Special check for Kia/Hyundai theft risk (2011-2021)
+  const isTheftRiskMake = THEFT_RISK_MAKES.some(
+    make => make.toLowerCase() === normalizedMake.toLowerCase()
+  );
+  const isTheftRiskYear = deal.vehicleYear >= THEFT_RISK_YEAR_START && deal.vehicleYear <= THEFT_RISK_YEAR_END;
+
+  if (isTheftRiskMake && isTheftRiskYear) {
+    // Check if a preference already handles this
+    const hasTheftPenalty = preferences.some(p =>
+      p.make.toLowerCase() === normalizedMake.toLowerCase() &&
+      p.yearRange &&
+      deal.vehicleYear >= p.yearRange.start &&
+      deal.vehicleYear <= p.yearRange.end
+    );
+
+    if (!hasTheftPenalty && advanceMultiplier === 1.0) {
+      // Apply default theft risk penalty if not already handled
+      advanceMultiplier = 0.90;
+      warnings.push(`Theft Risk: ${normalizedMake} ${deal.vehicleYear} (2011-2021 models lack immobilizers)`);
+    }
+  }
+
+  return {
+    isEligible: reasons.length === 0,
+    reasons,
+    advanceMultiplier,
+    warnings,
+  };
+}
 
 export interface RehashResult {
   bestDeal: DealCandidate | null;
@@ -149,7 +244,8 @@ function estimateNetCheckAndProfit(
   lender: LenderConfig,
   tierRow: { baseAdvancePercent: number; maxAdvancePercent: number; maxLtvPercent: number },
   amountFinanced: number,
-  backendTotal: number
+  backendTotal: number,
+  advanceMultiplier: number = 1.0  // Vehicle preference multiplier
 ): {
   netCheckToDealer: number;
   dealerFrontGross: number;
@@ -161,9 +257,10 @@ function estimateNetCheckAndProfit(
   const vehicleValue = deal.vehiclePrice;
   const ltv = vehicleValue > 0 ? (amountFinanced / vehicleValue) * 100 : 999;
 
-  const baseAdvance = (tierRow.baseAdvancePercent / 100) * deal.vehicleCost;
-  const maxAdvanceByCost = (tierRow.maxAdvancePercent / 100) * deal.vehicleCost;
-  const maxAdvanceByLtv = (tierRow.maxLtvPercent / 100) * vehicleValue;
+  // Apply advance multiplier to base and max advance calculations
+  const baseAdvance = (tierRow.baseAdvancePercent / 100) * deal.vehicleCost * advanceMultiplier;
+  const maxAdvanceByCost = (tierRow.maxAdvancePercent / 100) * deal.vehicleCost * advanceMultiplier;
+  const maxAdvanceByLtv = (tierRow.maxLtvPercent / 100) * vehicleValue * advanceMultiplier;
 
   const grossAdvance = Math.min(amountFinanced, maxAdvanceByCost, maxAdvanceByLtv);
 
@@ -195,6 +292,15 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
   const activeLenders = lenders.filter(l => l.active);
 
   activeLenders.forEach(lender => {
+    // Check vehicle eligibility for this lender
+    const eligibility = isVehicleEligible(deal, lender);
+
+    // Skip lender if vehicle is not eligible
+    if (!eligibility.isEligible) {
+      return;
+    }
+
+    // Legacy checks (still apply as fallback)
     const vehicleAge = new Date().getFullYear() - deal.vehicleYear;
     if (vehicleAge > lender.maxVehicleAgeYears) return;
     if (deal.vehicleMileage > lender.maxMiles) return;
@@ -295,7 +401,8 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             lender,
             tierRow,
             amountFinanced,
-            scenario.value
+            scenario.value,
+            eligibility.advanceMultiplier  // Apply vehicle preference multiplier
           );
 
           const adjustments: string[] = [];
@@ -317,13 +424,29 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             adjustments.push('No products - lean structure');
           }
 
+          // Add vehicle preference adjustments
+          if (eligibility.advanceMultiplier !== 1.0) {
+            const adjustmentPercent = ((1 - eligibility.advanceMultiplier) * 100).toFixed(0);
+            if (eligibility.advanceMultiplier < 1.0) {
+              adjustments.push(`Advance reduced by ${adjustmentPercent}% (vehicle risk)`);
+            } else {
+              const bonusPercent = ((eligibility.advanceMultiplier - 1) * 100).toFixed(0);
+              adjustments.push(`Advance increased by ${bonusPercent}% (preferred vehicle)`);
+            }
+          }
+
           // Generate smart note
-          const smartNote = generateSmartNote(
+          let smartNote = generateSmartNote(
             scenario.hasGap,
             scenario.hasVsc,
             riskAssessment,
             scenario.optimizationLevel
           );
+
+          // Append vehicle warnings to smart note
+          if (eligibility.warnings.length > 0) {
+            smartNote += '. ' + eligibility.warnings.join('. ');
+          }
 
           const candidate: DealCandidate = {
             lenderId: lender.id,
@@ -348,6 +471,9 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             smartNote,
             riskAssessment,
             optimizationLevel: scenario.optimizationLevel,
+            // Vehicle eligibility fields
+            vehicleWarnings: eligibility.warnings,
+            advanceMultiplier: eligibility.advanceMultiplier,
           };
 
           candidates.push(candidate);
