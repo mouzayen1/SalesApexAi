@@ -11,8 +11,9 @@ export interface DealInput {
   vehicleId: string;
   vehicleYear: number;
   vehicleMileage: number;
-  vehiclePrice: number;      // Selling price (before tax/fees)
+  vehiclePrice: number;       // Selling price (before tax/fees)
   vehicleCost: number;        // Dealer cost (for profit calculation)
+  vehicleBookValue?: number;  // Book value for LTV calc (defaults to vehicleCost * 1.20)
   taxRate: number;            // e.g., 0.09 for 9%
   fees: number;               // Doc + DMV + misc dealer fees
   downPayment: number;        // Customer cash down

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { runRehash } from '../../../shared/rehash';
+import type { RehashResult, OptimizationMetadata } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
 
 export default function RehashOptimizer() {
@@ -9,7 +10,7 @@ export default function RehashOptimizer() {
   const [dealInput, setDealInput] = useState<DealInput>({
     vehicleId: 'demo-1',
     vehicleYear: 2020,
-    vehicleMileage: 50000,
+    vehicleMileage: 55000,
     vehiclePrice: 21995,
     vehicleCost: 18500,
     taxRate: 0.09,
@@ -17,13 +18,13 @@ export default function RehashOptimizer() {
     downPayment: 3000,
     tradeAllowance: 0,
     tradePayoff: 0,
-    backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
+    backendProducts: { gap: false, vsc: false, otherProductsTotal: 0 },
     customerCreditTier: 'subprime',
     targetPayment: 450,
     paymentTolerance: 50,
   });
 
-  const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
+  const [results, setResults] = useState<RehashResult | null>(null);
 
   const handleFindLenders = () => {
     const rehashResults = runRehash(dealInput);
@@ -59,6 +60,26 @@ export default function RehashOptimizer() {
             <h2 className="mb-4 text-xl font-bold text-white">Deal Information</h2>
 
             <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Year</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleYear}
+                  onChange={e => handleInputChange('vehicleYear', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Mileage</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleMileage}
+                  onChange={e => handleInputChange('vehicleMileage', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm text-slate-300">Vehicle Price</label>
                 <input
@@ -154,11 +175,19 @@ export default function RehashOptimizer() {
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-green-300">🏆 Best Deal</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
+                        {/* Product Badges */}
+                        <ProductBadges optimization={results.optimization} />
+                      </div>
                       <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
                         HIGHEST NET CHECK
                       </span>
                     </div>
+
+                    {/* Optimization Notes */}
+                    <OptimizationNotes optimization={results.optimization} />
+
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="text-slate-400">Lender</div>
@@ -253,6 +282,65 @@ export default function RehashOptimizer() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Displays badges for auto-added products (GAP / VSC)
+ */
+function ProductBadges({ optimization }: { optimization: OptimizationMetadata }) {
+  const { smartProducts } = optimization;
+
+  return (
+    <div className="flex gap-1">
+      {smartProducts.gap && (
+        <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
+          +GAP
+        </span>
+      )}
+      {smartProducts.vsc && (
+        <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold text-white">
+          +VSC
+        </span>
+      )}
+      {optimization.budgetSaverApplied && (
+        <span className="rounded-full bg-amber-600 px-2 py-0.5 text-xs font-bold text-white">
+          BUDGET SAVER
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Displays optimization notes explaining why products were added/removed
+ */
+function OptimizationNotes({ optimization }: { optimization: OptimizationMetadata }) {
+  const { optimizationNotes, smartProducts } = optimization;
+
+  if (optimizationNotes.length === 0) return null;
+
+  // Find the most relevant note to display prominently
+  const primaryNote = smartProducts.vsc
+    ? smartProducts.vscReason
+    : smartProducts.gap
+    ? smartProducts.gapReason
+    : null;
+
+  return (
+    <div className="mb-3 space-y-1">
+      {primaryNote && (
+        <div className="text-xs text-slate-300">
+          <span className="font-semibold text-blue-400">Optimization:</span> {primaryNote}
+        </div>
+      )}
+      {optimization.budgetSaverApplied && optimization.productsRemoved.length > 0 && (
+        <div className="text-xs text-amber-300">
+          <span className="font-semibold">Budget Adjusted:</span> Removed{' '}
+          {optimization.productsRemoved.join(' & ')} to fit payment target
+        </div>
+      )}
     </div>
   );
 }
