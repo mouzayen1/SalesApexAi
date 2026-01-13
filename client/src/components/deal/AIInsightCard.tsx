@@ -1,6 +1,6 @@
 // client/src/components/deal/AIInsightCard.tsx
 // Groq AI-powered deal insight card
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 interface DealInsight {
   status: "good" | "difficult" | "impossible" | "error";
@@ -31,13 +31,17 @@ export default function AIInsightCard({
 }: AIInsightCardProps) {
   const [insight, setInsight] = useState<DealInsight | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Props validation - early return if invalid
+  if (!bestDeal || !targetPayment) {
+    return null;
+  }
 
   // Calculate gap
-  const gap = bestDeal?.payment ? bestDeal.payment - targetPayment : 0;
+  const gap = bestDeal.payment ? bestDeal.payment - targetPayment : 0;
 
   // Build bank rules from deal context
-  const getBankRules = () => {
+  const bankRules = useMemo(() => {
     const rules: string[] = [];
     if (bestDeal?.ltv && bestDeal.ltv > 100) {
       rules.push(`Max LTV ${Math.ceil(bestDeal.ltv)}%`);
@@ -49,10 +53,16 @@ export default function AIInsightCard({
       rules.push("Includes GAP");
     }
     return rules;
-  };
+  }, [bestDeal?.ltv, bestDeal?.hasVsc, bestDeal?.hasGap]);
+
+  // Memoized request key for exact re-trigger
+  const requestKey = useMemo(() =>
+    JSON.stringify({ vehiclePrice, targetPayment, bestPayment: bestDeal?.payment, creditTier }),
+    [vehiclePrice, targetPayment, bestDeal?.payment, creditTier]
+  );
 
   useEffect(() => {
-    // Only fetch if there's a positive gap (customer wants less than best available)
+    // Only fetch if there's a positive gap
     if (gap <= 0 || !bestDeal?.payment || !vehiclePrice) {
       setInsight(null);
       return;
@@ -60,38 +70,44 @@ export default function AIInsightCard({
 
     const fetchInsight = async () => {
       setLoading(true);
-      setError(null);
+      console.log("[AIInsightCard] Fetching insight for:", { vehiclePrice, targetPayment, bestPayment: bestDeal.payment, creditTier, gap });
 
       try {
         const response = await fetch("/api/analyze-deal", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             vehiclePrice,
             targetPayment,
             bestPayment: bestDeal.payment,
             creditTier,
-            income: income || 0,
-            bankRules: getBankRules(),
+            income: income || 5000,
+            bankRules,
           }),
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+        console.log("[AIInsightCard] Response status:", response.status);
 
         const data = await response.json();
+        console.log("[AIInsightCard] Parsed data:", data);
+
+        // Always set insight even on error - backend returns valid fallback
         setInsight(data);
       } catch (err) {
-        console.error("AI Insight fetch error:", err);
-        setError("Failed to fetch insight");
-        // Set fallback insight
+        console.error("[AIInsightCard] Fetch error:", err);
+        // Network failure fallback - use gap-based logic
         setInsight({
-          status: "error",
-          analysis: "Check inputs",
-          strategy: "Recalculate.",
+          status: gap < 50 ? "good" : gap < 100 ? "difficult" : "impossible",
+          analysis: gap < 50
+            ? "Deal appears achievable."
+            : gap < 100
+              ? "Moderate gap - adjustments may help."
+              : "Large gap - consider alternatives.",
+          strategy: gap < 50
+            ? "Focus on maximizing backend."
+            : gap < 100
+              ? "Suggest down payment or term extension."
+              : "Explore different vehicle options.",
         });
       } finally {
         setLoading(false);
@@ -99,59 +115,81 @@ export default function AIInsightCard({
     };
 
     fetchInsight();
-  }, [vehiclePrice, creditTier, targetPayment, bestDeal?.payment]);
+  }, [requestKey]);
 
   // Don't render if no gap or no best deal
   if (gap <= 0 || !bestDeal?.payment) {
     return null;
   }
 
-  // Border color based on status
+  // Border and background colors - NO RED for errors, use neutral instead
   const getBorderColor = () => {
-    if (!insight) return "border-slate-600";
+    if (!insight || insight.status === "error") return "border-slate-500";
     switch (insight.status) {
       case "good":
         return "border-green-500";
       case "difficult":
         return "border-yellow-500";
       case "impossible":
-      case "error":
-        return "border-red-500";
+        return "border-orange-500"; // Orange instead of red for impossible
       default:
-        return "border-slate-600";
+        return "border-slate-500";
     }
   };
 
-  // Background gradient based on status
   const getBackgroundClass = () => {
-    if (!insight) return "bg-slate-800/50";
+    if (!insight || insight.status === "error") return "bg-slate-800/50";
     switch (insight.status) {
       case "good":
         return "bg-gradient-to-r from-green-900/20 to-green-800/10";
       case "difficult":
         return "bg-gradient-to-r from-yellow-900/20 to-amber-800/10";
       case "impossible":
-      case "error":
-        return "bg-gradient-to-r from-red-900/20 to-red-800/10";
+        return "bg-gradient-to-r from-orange-900/20 to-orange-800/10"; // Orange gradient
       default:
         return "bg-slate-800/50";
     }
   };
 
-  // Status emoji
   const getStatusEmoji = () => {
-    if (!insight) return "";
+    if (!insight || insight.status === "error") return "💡";
     switch (insight.status) {
       case "good":
         return "✅";
       case "difficult":
         return "⚠️";
       case "impossible":
-        return "🚫";
-      case "error":
-        return "❌";
+        return "🔄"; // Suggest pivot, not stop
       default:
-        return "";
+        return "💡";
+    }
+  };
+
+  const getStatusLabel = () => {
+    if (!insight || insight.status === "error") return "Analyzing...";
+    switch (insight.status) {
+      case "good":
+        return "Realistic Deal";
+      case "difficult":
+        return "Challenging";
+      case "impossible":
+        return "Needs Adjustment";
+      default:
+        return "Analyzing...";
+    }
+  };
+
+  const getStatusTextColor = () => {
+    if (!insight || insight.status === "error") return "text-slate-300";
+    switch (insight.status) {
+      case "good":
+        return "text-green-300";
+      case "difficult":
+        return "text-yellow-300";
+      case "impossible":
+        return "text-orange-300";
+      default:
+        return "text-slate-300";
     }
   };
 
@@ -171,7 +209,6 @@ export default function AIInsightCard({
         {/* Content */}
         <div className="flex-1 min-w-0">
           {loading ? (
-            // Skeleton loader
             <div className="animate-pulse space-y-2">
               <div className="h-4 bg-slate-700 rounded w-3/4"></div>
               <div className="h-3 bg-slate-700 rounded w-1/2"></div>
@@ -180,22 +217,8 @@ export default function AIInsightCard({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">{getStatusEmoji()}</span>
-                <span
-                  className={`text-sm font-semibold capitalize ${
-                    insight.status === "good"
-                      ? "text-green-300"
-                      : insight.status === "difficult"
-                      ? "text-yellow-300"
-                      : "text-red-300"
-                  }`}
-                >
-                  {insight.status === "good"
-                    ? "Realistic Deal"
-                    : insight.status === "difficult"
-                    ? "Challenging"
-                    : insight.status === "impossible"
-                    ? "Unrealistic"
-                    : "Analysis Error"}
+                <span className={`text-sm font-semibold ${getStatusTextColor()}`}>
+                  {getStatusLabel()}
                 </span>
                 <span className="text-xs text-slate-400">
                   (Gap: ${gap.toFixed(0)})
