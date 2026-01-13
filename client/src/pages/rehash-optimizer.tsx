@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { runRehash, assessRisk, RehashResult } from '../../../shared/rehash';
 import type { DealInput, DealCandidate, RiskAssessment } from '../../../shared/deals';
 import type { Car } from '@shared/schema';
+import AIInsightCard from '../components/deal/AIInsightCard';
 
 // Product badge component
 function ProductBadge({ hasGap, hasVsc }: { hasGap: boolean; hasVsc: boolean }) {
@@ -299,6 +300,15 @@ export default function RehashOptimizer() {
 
               {results && results.bestDeal && (
                 <>
+                  {/* AI Insight Card */}
+                  <AIInsightCard
+                    vehiclePrice={dealInput.vehiclePrice}
+                    targetPayment={dealInput.targetPayment}
+                    bestDeal={results.bestDeal}
+                    creditTier={dealInput.customerCreditTier}
+                    income={dealInput.monthlyIncome || 0}
+                  />
+
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
                     <div className="mb-3 flex items-center justify-between">

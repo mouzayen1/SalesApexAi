@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { conversationRequestSchema } from "@shared/schema";
+import { handleAnalyzeDeal } from "./analyze-deal";
 const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(
@@ -116,7 +117,7 @@ export async function registerRoutes(
       if (!isConfigured()) {
         return res.status(503).json({ error: "OpenAI API key not configured" });
       }
-      
+
       const { text } = req.body;
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
@@ -133,6 +134,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to generate speech" });
     }
   });
+
+  // Groq-powered deal insight analyzer
+  app.post("/api/analyze-deal", handleAnalyzeDeal);
 
   return httpServer;
 }
