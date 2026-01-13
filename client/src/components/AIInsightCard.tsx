@@ -140,91 +140,73 @@ export function AIInsightCard({ dealData, onRetry }: AIInsightCardProps) {
   // Don't render if no deal data
   if (!dealData) return null;
 
-  // Determine styling based on scenario/gap
-  const getCardStyle = () => {
-    if (loadingState === 'loading') {
-      return 'border-slate-500 bg-slate-800/50';
+  // Get border accent color based on gap
+  const getBorderColor = () => {
+    if (loadingState === 'loading' || loadingState === 'error' || !insight) {
+      return 'border-l-slate-500';
     }
-    if (loadingState === 'error') {
-      return 'border-red-500/50 bg-red-900/20';
-    }
-    if (!insight) {
-      return 'border-slate-500 bg-slate-800/50';
-    }
-
-    // Gap-based styling
-    if (insight.gap <= 50) {
-      return 'border-emerald-500 bg-gradient-to-br from-emerald-900/30 to-emerald-800/20';
-    } else if (insight.gap <= 100) {
-      return 'border-amber-500 bg-gradient-to-br from-amber-900/30 to-amber-800/20';
-    } else {
-      return 'border-red-500 bg-gradient-to-br from-red-900/30 to-red-800/20';
-    }
+    if (insight.gap <= 50) return 'border-l-emerald-500';
+    if (insight.gap <= 100) return 'border-l-amber-500';
+    return 'border-l-red-500';
   };
 
-  const getIconAndLabel = () => {
-    if (loadingState === 'loading') {
-      return { icon: '...', label: 'Analyzing', color: 'text-slate-400' };
+  const getTextColor = () => {
+    if (loadingState === 'loading' || loadingState === 'error' || !insight) {
+      return 'text-slate-400';
     }
-    if (loadingState === 'error') {
-      return { icon: '!', label: 'Error', color: 'text-red-400' };
-    }
-    if (!insight) {
-      return { icon: '?', label: 'Pending', color: 'text-slate-400' };
-    }
-
-    if (insight.gap <= 50) {
-      return { icon: '...', label: 'Helpful Tip', color: 'text-emerald-400' };
-    } else if (insight.gap <= 100) {
-      return { icon: '!', label: 'Attention Needed', color: 'text-amber-400' };
-    } else {
-      return { icon: '!!', label: 'Reality Check', color: 'text-red-400' };
-    }
+    if (insight.gap <= 50) return 'text-emerald-400';
+    if (insight.gap <= 100) return 'text-amber-400';
+    return 'text-red-400';
   };
 
-  const { label, color } = getIconAndLabel();
+  const getLabel = () => {
+    if (loadingState === 'loading') return 'Analyzing...';
+    if (loadingState === 'error') return 'Error';
+    if (!insight) return 'Pending';
+    if (insight.gap <= 50) return 'Good';
+    if (insight.gap <= 100) return 'Attention';
+    return 'Reality Check';
+  };
+
+  const color = getTextColor();
 
   return (
-    <div className={`mb-6 rounded-lg border-2 p-4 transition-all duration-300 ${getCardStyle()}`}>
-      {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
+    <div className={`mb-4 rounded-lg border-l-4 bg-slate-700/50 p-3 ${getBorderColor()}`}>
+      {/* Compact Header */}
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-            insight?.gap && insight.gap <= 50 ? 'bg-emerald-500/20' :
-            insight?.gap && insight.gap <= 100 ? 'bg-amber-500/20' :
-            insight?.gap && insight.gap > 100 ? 'bg-red-500/20' : 'bg-slate-500/20'
-          }`}>
-            <svg className={`h-5 w-5 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </div>
-          <h3 className={`text-lg font-bold ${color}`}>Smart Deal AI</h3>
+          <svg className={`h-4 w-4 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+          <span className={`text-sm font-semibold ${color}`}>AI Insight</span>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-          insight?.gap && insight.gap <= 50 ? 'bg-emerald-500/20 text-emerald-300' :
-          insight?.gap && insight.gap <= 100 ? 'bg-amber-500/20 text-amber-300' :
-          insight?.gap && insight.gap > 100 ? 'bg-red-500/20 text-red-300' : 'bg-slate-500/20 text-slate-300'
-        }`}>
-          {label}
-        </span>
+        <div className="flex items-center gap-2">
+          {insight && (
+            <span className={`text-sm font-bold ${color}`}>
+              ${insight.gap} gap
+            </span>
+          )}
+          <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+            insight?.gap && insight.gap <= 50 ? 'bg-emerald-500/20 text-emerald-300' :
+            insight?.gap && insight.gap <= 100 ? 'bg-amber-500/20 text-amber-300' :
+            insight?.gap && insight.gap > 100 ? 'bg-red-500/20 text-red-300' : 'bg-slate-600 text-slate-300'
+          }`}>
+            {getLabel()}
+          </span>
+        </div>
       </div>
 
-      {/* Loading Skeleton */}
+      {/* Loading State */}
       {loadingState === 'loading' && (
         <div className="animate-pulse">
-          <div className="mb-2 h-4 w-3/4 rounded bg-slate-700"></div>
-          <div className="mb-3 h-4 w-1/2 rounded bg-slate-700"></div>
-          <div className="flex gap-2">
-            <div className="h-6 w-24 rounded bg-slate-700"></div>
-            <div className="h-6 w-24 rounded bg-slate-700"></div>
-          </div>
+          <div className="h-4 w-3/4 rounded bg-slate-600"></div>
         </div>
       )}
 
       {/* Error State */}
       {loadingState === 'error' && (
-        <div>
-          <p className="mb-3 text-red-300">{error}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-red-300">{error}</p>
           <button
             onClick={() => {
               onRetry?.();
@@ -232,63 +214,34 @@ export function AIInsightCard({ dealData, onRetry }: AIInsightCardProps) {
                 fetchInsight(dealData);
               }
             }}
-            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            className="rounded bg-red-600/50 px-2 py-1 text-xs text-white hover:bg-red-600"
           >
-            Retry Analysis
+            Retry
           </button>
         </div>
       )}
 
-      {/* Success State */}
+      {/* Success State - Compact */}
       {loadingState === 'success' && insight && (
         <div>
-          {/* Gap Display */}
-          <div className="mb-3 flex items-center gap-4">
-            <div className={`text-2xl font-bold ${color}`}>
-              ${insight.gap} Gap
-            </div>
-            <div className="text-sm text-slate-400">
-              Target: ${dealData.targetPayment} | Floor: ${Math.round(dealData.floorPayment)}
-            </div>
-          </div>
-
-          {/* AI Insight */}
-          <p className="mb-4 text-white leading-relaxed">
+          <p className="text-sm text-slate-200 leading-relaxed">
             {insight.insight}
           </p>
-
-          {/* Suggested Actions */}
+          {/* Compact suggested actions */}
           {insight.suggestedActions && insight.suggestedActions.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {insight.suggestedActions.map((action, idx) => (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {insight.suggestedActions.slice(0, 2).map((action, idx) => (
                 <span
                   key={idx}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    insight.gap <= 50 ? 'bg-emerald-500/20 text-emerald-300' :
-                    insight.gap <= 100 ? 'bg-amber-500/20 text-amber-300' :
-                    'bg-red-500/20 text-red-300'
+                  className={`rounded px-2 py-0.5 text-xs ${
+                    insight.gap <= 50 ? 'bg-emerald-500/10 text-emerald-300' :
+                    insight.gap <= 100 ? 'bg-amber-500/10 text-amber-300' :
+                    'bg-red-500/10 text-red-300'
                   }`}
                 >
                   {action}
                 </span>
               ))}
-            </div>
-          )}
-
-          {/* Bank Rules Hit */}
-          {dealData.bankRulesHit && dealData.bankRulesHit.length > 0 && (
-            <div className="mt-4 border-t border-slate-700 pt-3">
-              <div className="text-xs font-semibold uppercase text-slate-500 mb-2">Bank Rules Applied</div>
-              <div className="flex flex-wrap gap-1">
-                {dealData.bankRulesHit.map((rule, idx) => (
-                  <span
-                    key={idx}
-                    className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-300"
-                  >
-                    {rule}
-                  </span>
-                ))}
-              </div>
             </div>
           )}
         </div>

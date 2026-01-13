@@ -1,19 +1,43 @@
 // client/src/pages/rehash-optimizer.tsx
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { runRehash, calculateFloorPayment } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
 import type { SmartDealAIRequest } from '../../../shared/smartDealAI';
 import AIInsightCard from '../components/AIInsightCard';
 
+interface VehicleInfo {
+  id: string;
+  year: number;
+  make: string;
+  model: string;
+  price: number;
+  mileage: number;
+}
+
 export default function RehashOptimizer() {
   const navigate = useNavigate();
-  const [dealInput, setDealInput] = useState<DealInput>({
-    vehicleId: 'demo-1',
-    vehicleYear: 2020,
-    vehicleMileage: 50000,
-    vehiclePrice: 21995,
-    vehicleCost: 18500,
+  const [searchParams] = useSearchParams();
+
+  // Parse vehicle info from URL params
+  const vehicleInfo = useMemo<VehicleInfo>(() => ({
+    id: searchParams.get('vehicleId') || 'demo-1',
+    year: parseInt(searchParams.get('vehicleYear') || '2020', 10),
+    make: searchParams.get('vehicleMake') || 'Demo',
+    model: searchParams.get('vehicleModel') || 'Vehicle',
+    price: parseInt(searchParams.get('vehiclePrice') || '21995', 10),
+    mileage: parseInt(searchParams.get('vehicleMileage') || '50000', 10),
+  }), [searchParams]);
+
+  // Create a URL key for detecting changes
+  const urlKey = searchParams.toString();
+
+  const [dealInput, setDealInput] = useState<DealInput>(() => ({
+    vehicleId: vehicleInfo.id,
+    vehicleYear: vehicleInfo.year,
+    vehicleMileage: vehicleInfo.mileage,
+    vehiclePrice: vehicleInfo.price,
+    vehicleCost: Math.round(vehicleInfo.price * 0.85), // Estimate cost at 85%
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -23,12 +47,34 @@ export default function RehashOptimizer() {
     customerCreditTier: 'subprime',
     targetPayment: 450,
     paymentTolerance: 50,
-  });
+  }));
 
   const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
   const [aiInsightData, setAiInsightData] = useState<SmartDealAIRequest | null>(null);
 
+  // Sync dealInput when URL params change
+  useEffect(() => {
+    console.log('URL changed, updating deal input:', vehicleInfo);
+    setDealInput(prev => ({
+      ...prev,
+      vehicleId: vehicleInfo.id,
+      vehicleYear: vehicleInfo.year,
+      vehicleMileage: vehicleInfo.mileage,
+      vehiclePrice: vehicleInfo.price,
+      vehicleCost: Math.round(vehicleInfo.price * 0.85),
+    }));
+    // Clear results to show fresh state
+    setResults(null);
+    setAiInsightData(null);
+  }, [urlKey, vehicleInfo]);
+
+  // Auto-calculate when dealInput changes
+  useEffect(() => {
+    handleFindLenders();
+  }, [dealInput.vehiclePrice, dealInput.customerCreditTier, dealInput.downPayment, dealInput.targetPayment]);
+
   const handleFindLenders = () => {
+    console.log('Calculating lenders for:', dealInput);
     const rehashResults = runRehash(dealInput);
     setResults(rehashResults);
 
@@ -39,7 +85,6 @@ export default function RehashOptimizer() {
     if (rehashResults.bestDeal && floorResult) {
       const bestProfitPayment = rehashResults.bestDeal.payment;
 
-      // Only trigger detailed AI analysis if gap > $50 (dual-calculation strategy)
       const aiRequest: SmartDealAIRequest = {
         targetPayment: dealInput.targetPayment,
         bestProfitPayment,
@@ -59,27 +104,71 @@ export default function RehashOptimizer() {
     }
   };
 
-  useEffect(() => {
-    // Auto-run on load with demo data
-    handleFindLenders();
-  }, []);
-
   const handleInputChange = (field: keyof DealInput, value: any) => {
     setDealInput(prev => ({ ...prev, [field]: value }));
   };
 
+  // Calculate if trade is "upside down"
+  const tradeEquity = dealInput.tradeAllowance - dealInput.tradePayoff;
+  const isUpsideDown = tradeEquity < 0;
+
+  // Determine if AI card should be shown (hide when gap < $10)
+  const paymentGap = results?.bestDeal
+    ? results.bestDeal.payment - dealInput.targetPayment
+    : 0;
+  const shouldShowAI = aiInsightData && paymentGap >= 10;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
       <div className="mx-auto max-w-7xl">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-white">Rehash Optimizer</h1>
+        {/* Navigation */}
+        <div className="mb-4">
           <button
             onClick={() => navigate('/')}
-            className="rounded bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+            className="inline-flex items-center text-sm text-blue-300 hover:text-blue-200"
           >
-            ← Back to Home
+            <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Inventory
           </button>
+        </div>
+
+        {/* Vehicle Header - Blue Banner */}
+        <div className="mb-6 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 p-4 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                {vehicleInfo.year} {vehicleInfo.make} {vehicleInfo.model}
+              </h1>
+              <p className="text-blue-200">Stock #{vehicleInfo.id}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Price Badge */}
+              <div className="rounded-lg bg-white/20 px-4 py-2 backdrop-blur">
+                <div className="text-xs text-blue-100">Price</div>
+                <div className="text-xl font-bold text-white">
+                  ${vehicleInfo.price.toLocaleString()}
+                </div>
+              </div>
+              {/* Mileage Badge */}
+              <div className="rounded-lg bg-white/20 px-4 py-2 backdrop-blur">
+                <div className="text-xs text-blue-100">Mileage</div>
+                <div className="text-xl font-bold text-white">
+                  {vehicleInfo.mileage.toLocaleString()} mi
+                </div>
+              </div>
+              {/* Upside Down Warning */}
+              {isUpsideDown && (
+                <div className="rounded-lg bg-red-500/80 px-4 py-2">
+                  <div className="text-xs text-red-100">Trade</div>
+                  <div className="text-lg font-bold text-white">
+                    ${Math.abs(tradeEquity).toLocaleString()} Upside Down
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -152,26 +241,11 @@ export default function RehashOptimizer() {
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">Customer Monthly Income (optional)</label>
-                <input
-                  type="number"
-                  placeholder="For PTI context"
-                  onChange={e => {
-                    const income = Number(e.target.value);
-                    if (aiInsightData && income > 0) {
-                      setAiInsightData({ ...aiInsightData, customerIncome: income });
-                    }
-                  }}
-                  className="w-full rounded bg-slate-700 px-3 py-2 text-white placeholder-slate-500"
-                />
-              </div>
-
               <button
                 onClick={handleFindLenders}
                 className="w-full rounded bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
               >
-                Find Lenders
+                Recalculate
               </button>
             </div>
           </div>
@@ -183,7 +257,7 @@ export default function RehashOptimizer() {
 
               {!results && (
                 <div className="text-center text-slate-400">
-                  Click "Find Lenders" to see results
+                  Calculating best lender options...
                 </div>
               )}
 
@@ -195,16 +269,18 @@ export default function RehashOptimizer() {
 
               {results && results.bestDeal && (
                 <>
-                  {/* Smart Deal AI Insight Card */}
-                  <AIInsightCard
-                    dealData={aiInsightData}
-                    onRetry={handleFindLenders}
-                  />
+                  {/* Smart Deal AI Insight Card - Compact version inside results */}
+                  {shouldShowAI && (
+                    <AIInsightCard
+                      dealData={aiInsightData}
+                      onRetry={handleFindLenders}
+                    />
+                  )}
 
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-green-300">🏆 Best Deal</h3>
+                      <h3 className="text-lg font-bold text-green-300">Best Deal</h3>
                       <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
                         HIGHEST NET CHECK
                       </span>

@@ -44,7 +44,15 @@ export function VehicleDetailPage() {
 
   
       const handleRehashClick = () => {
-    navigate(`/rehash-optimizer?vehiclePrice=${car.price}`);
+    const params = new URLSearchParams({
+      vehicleId: String(car.id),
+      vehiclePrice: String(car.price),
+      vehicleYear: String(car.year),
+      vehicleMake: car.make,
+      vehicleModel: car.model,
+      vehicleMileage: String(car.mileage || 0),
+    });
+    navigate(`/rehash-optimizer?${params.toString()}`);
   };
   return (
     <div className="mx-auto max-w-4xl p-6">
