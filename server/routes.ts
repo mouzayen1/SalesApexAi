@@ -3,7 +3,26 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { conversationRequestSchema } from "@shared/schema";
+import { isGroqConfigured, generateSmartDealInsight } from "./groqService";
+import type { SmartDealAIRequest } from "@shared/smartDealAI";
 const upload = multer({ storage: multer.memoryStorage() });
+
+// OpenAI stub functions (not yet implemented)
+function isConfigured(): boolean {
+  return !!process.env.OPENAI_API_KEY;
+}
+
+async function transcribeAudio(_buffer: Buffer): Promise<string> {
+  throw new Error("OpenAI transcription not yet implemented");
+}
+
+async function generateChatResponse(_messages: any[], _userMessage: string): Promise<string> {
+  throw new Error("OpenAI chat not yet implemented");
+}
+
+async function generateSpeech(_text: string): Promise<Buffer> {
+  throw new Error("OpenAI TTS not yet implemented");
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -116,7 +135,7 @@ export async function registerRoutes(
       if (!isConfigured()) {
         return res.status(503).json({ error: "OpenAI API key not configured" });
       }
-      
+
       const { text } = req.body;
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
@@ -131,6 +150,41 @@ export async function registerRoutes(
     } catch (error) {
       console.error("TTS error:", error);
       res.status(500).json({ error: "Failed to generate speech" });
+    }
+  });
+
+  // Check if Groq AI is configured
+  app.get("/api/groq/config", (req, res) => {
+    res.json({ groqConfigured: isGroqConfigured() });
+  });
+
+  // Smart Deal AI - Generate insight for deal analysis
+  app.post("/api/smart-deal-ai", async (req, res) => {
+    try {
+      if (!isGroqConfigured()) {
+        return res.status(503).json({
+          error: "Groq API key not configured. Please add GROQ_API_KEY to use Smart Deal AI."
+        });
+      }
+
+      const request = req.body as SmartDealAIRequest;
+
+      // Validate required fields
+      if (
+        typeof request.targetPayment !== 'number' ||
+        typeof request.bestProfitPayment !== 'number' ||
+        typeof request.floorPayment !== 'number'
+      ) {
+        return res.status(400).json({
+          error: "Invalid request: targetPayment, bestProfitPayment, and floorPayment are required"
+        });
+      }
+
+      const insight = await generateSmartDealInsight(request);
+      res.json(insight);
+    } catch (error) {
+      console.error("Smart Deal AI error:", error);
+      res.status(500).json({ error: "Failed to generate AI insight" });
     }
   });
 

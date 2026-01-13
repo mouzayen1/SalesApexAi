@@ -1,6 +1,7 @@
 // shared/rehash.ts
 import type { DealInput, DealCandidate } from './deals';
 import { LENDERS, LenderConfig } from './lenders';
+import type { FloorPaymentResult } from './smartDealAI';
 
 export interface RehashResult {
   bestDeal: DealCandidate | null;
@@ -204,4 +205,86 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
 
   const bestDeal = sorted.length > 0 ? sorted[0] : null;
   return { bestDeal, allCandidates: sorted };
+}
+
+/**
+ * Calculate the absolute floor (lowest possible) payment.
+ * Uses: Maximum term, No backend products, Buy rate (lowest APR).
+ * This represents the mathematically minimum payment achievable.
+ */
+export function calculateFloorPayment(
+  deal: DealInput,
+  lenders: LenderConfig[] = LENDERS
+): FloorPaymentResult | null {
+  const activeLenders = lenders.filter(l => l.active);
+  let floorResult: FloorPaymentResult | null = null;
+
+  activeLenders.forEach(lender => {
+    const vehicleAge = new Date().getFullYear() - deal.vehicleYear;
+    if (vehicleAge > lender.maxVehicleAgeYears) return;
+    if (deal.vehicleMileage > lender.maxMiles) return;
+
+    const tierRow = lender.pricingGrid.find(p => p.creditTier === deal.customerCreditTier);
+    if (!tierRow) return;
+
+    // Use the lowest APR (buy rate) for this tier
+    const apr = tierRow.minApr;
+
+    // Use maximum term for lowest payment
+    const maxTerm = Math.max(...lender.allowedTerms);
+
+    // No backend products for floor calculation
+    const backendTotal = 0;
+
+    // Calculate amount financed with current down payment (no modifications)
+    const amountFinanced = computeAmountFinanced(deal, backendTotal);
+
+    // Validate amount financed limits
+    if (amountFinanced < lender.minAmountFinanced || amountFinanced > lender.maxAmountFinanced) {
+      return;
+    }
+
+    // Validate LTV
+    const ltv = deal.vehiclePrice > 0 ? (amountFinanced / deal.vehiclePrice) * 100 : 999;
+    if (ltv > tierRow.maxLtvPercent) return;
+
+    // Validate deal with lender rules
+    const check = lender.validateDeal(deal, amountFinanced);
+    if (!check.isValid) return;
+
+    // Calculate monthly payment
+    const payment = calculateMonthlyPayment(amountFinanced, apr, maxTerm);
+
+    // Check if this is the lowest payment found
+    if (!floorResult || payment < floorResult.payment) {
+      // Collect bank rules that apply
+      const bankRulesHit: string[] = [];
+
+      if (ltv > 100) {
+        bankRulesHit.push(`LTV ${ltv.toFixed(0)}% (Max ${tierRow.maxLtvPercent}%)`);
+      }
+      if (deal.vehicleMileage > 100000) {
+        bankRulesHit.push('High mileage vehicle - may require VSC');
+      }
+      if (vehicleAge > 5) {
+        bankRulesHit.push(`Vehicle age ${vehicleAge} years`);
+      }
+      if (tierRow.minDownPct > 0 && deal.downPayment < deal.vehiclePrice * tierRow.minDownPct) {
+        bankRulesHit.push(`Minimum ${(tierRow.minDownPct * 100).toFixed(0)}% down required`);
+      }
+      bankRulesHit.push(`${lender.name}: Max term ${maxTerm}mo @ ${apr.toFixed(2)}% buy rate`);
+
+      floorResult = {
+        payment,
+        termMonths: maxTerm,
+        apr,
+        lenderName: lender.name,
+        amountFinanced,
+        ltv,
+        bankRulesHit,
+      };
+    }
+  });
+
+  return floorResult;
 }

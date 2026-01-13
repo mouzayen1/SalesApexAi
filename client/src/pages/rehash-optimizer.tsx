@@ -1,8 +1,10 @@
 // client/src/pages/rehash-optimizer.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { runRehash } from '../../../shared/rehash';
+import { runRehash, calculateFloorPayment } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
+import type { SmartDealAIRequest } from '../../../shared/smartDealAI';
+import AIInsightCard from '../components/AIInsightCard';
 
 export default function RehashOptimizer() {
   const navigate = useNavigate();
@@ -24,10 +26,37 @@ export default function RehashOptimizer() {
   });
 
   const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
+  const [aiInsightData, setAiInsightData] = useState<SmartDealAIRequest | null>(null);
 
   const handleFindLenders = () => {
     const rehashResults = runRehash(dealInput);
     setResults(rehashResults);
+
+    // Calculate floor payment for AI analysis
+    const floorResult = calculateFloorPayment(dealInput);
+
+    // Prepare AI insight data if we have valid results
+    if (rehashResults.bestDeal && floorResult) {
+      const bestProfitPayment = rehashResults.bestDeal.payment;
+
+      // Only trigger detailed AI analysis if gap > $50 (dual-calculation strategy)
+      const aiRequest: SmartDealAIRequest = {
+        targetPayment: dealInput.targetPayment,
+        bestProfitPayment,
+        floorPayment: floorResult.payment,
+        bankRulesHit: floorResult.bankRulesHit,
+        creditTier: dealInput.customerCreditTier,
+        amountFinanced: floorResult.amountFinanced,
+        ltv: floorResult.ltv,
+        termMonths: floorResult.termMonths,
+        downPayment: dealInput.downPayment,
+        vehiclePrice: dealInput.vehiclePrice,
+      };
+
+      setAiInsightData(aiRequest);
+    } else {
+      setAiInsightData(null);
+    }
   };
 
   useEffect(() => {
@@ -123,6 +152,21 @@ export default function RehashOptimizer() {
                 />
               </div>
 
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Customer Monthly Income (optional)</label>
+                <input
+                  type="number"
+                  placeholder="For PTI context"
+                  onChange={e => {
+                    const income = Number(e.target.value);
+                    if (aiInsightData && income > 0) {
+                      setAiInsightData({ ...aiInsightData, customerIncome: income });
+                    }
+                  }}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white placeholder-slate-500"
+                />
+              </div>
+
               <button
                 onClick={handleFindLenders}
                 className="w-full rounded bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
@@ -151,6 +195,12 @@ export default function RehashOptimizer() {
 
               {results && results.bestDeal && (
                 <>
+                  {/* Smart Deal AI Insight Card */}
+                  <AIInsightCard
+                    dealData={aiInsightData}
+                    onRetry={handleFindLenders}
+                  />
+
                   {/* Best Deal Card */}
                   <div className="mb-6 rounded-lg border-2 border-green-500 bg-gradient-to-br from-green-900/30 to-green-800/20 p-4">
                     <div className="mb-2 flex items-center justify-between">
