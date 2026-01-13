@@ -5,6 +5,8 @@ import { runRehash, assessRisk, RehashResult } from '../../../shared/rehash';
 import type { DealInput, DealCandidate, RiskAssessment } from '../../../shared/deals';
 import type { Car } from '@shared/schema';
 import AIInsightCard from '../components/deal/AIInsightCard';
+import ConfidenceBadge from '../components/deal/ConfidenceBadge';
+import { useBankFirstTriage } from '../hooks/useBankFirstTriage';
 
 // Product badge component
 function ProductBadge({ hasGap, hasVsc }: { hasGap: boolean; hasVsc: boolean }) {
@@ -74,6 +76,16 @@ export default function RehashOptimizer() {
   const [vehicleInfo, setVehicleInfo] = useState<{ year: number; make: string; model: string } | null>(null);
   const [results, setResults] = useState<RehashResult | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Bank-First 3-Phase Triage
+  const triageData = useBankFirstTriage({
+    allCandidates: results?.allCandidates || [],
+    targetPayment: dealInput.targetPayment,
+    vehicleMileage: dealInput.vehicleMileage,
+    creditTier: dealInput.customerCreditTier,
+    riskAssessment: results?.riskAssessment || null,
+    enabled: !!results && results.allCandidates.length > 0,
+  });
 
   const handleFindLenders = useCallback(() => {
     if (dealInput.vehiclePrice > 0) {
@@ -298,6 +310,33 @@ export default function RehashOptimizer() {
                 </div>
               )}
 
+              {/* Phase 1: Compliance Filter Status */}
+              {triageData.rejectedCount > 0 && (
+                <div className="mb-4 rounded-lg bg-slate-700/50 border border-slate-600 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-300">
+                      <span className="font-semibold text-blue-300">Bank-First Filter:</span>{' '}
+                      {triageData.validDeals.length} compliant deals
+                    </span>
+                    <span className="text-slate-400">
+                      ({triageData.rejectedCount} filtered for compliance)
+                    </span>
+                  </div>
+                  {triageData.bankRules && (
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                      <span className="text-slate-400">Rules:</span>
+                      <span className="text-slate-300">LTV Cap {triageData.bankRules.ltvCap}%</span>
+                      {triageData.bankRules.mandatoryVsc && (
+                        <span className="text-purple-300">• VSC Required</span>
+                      )}
+                      {triageData.bankRules.mandatoryGap && (
+                        <span className="text-emerald-300">• GAP Required</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {results && results.bestDeal && (
                 <>
                   {/* AI Insight Card */}
@@ -407,6 +446,15 @@ export default function RehashOptimizer() {
                           </p>
                         </div>
                       </div>
+                    )}
+
+                    {/* Bank-First Triage Confidence Badge */}
+                    {triageData.triageResult && (
+                      <ConfidenceBadge
+                        mode={triageData.triageResult.mode}
+                        badge={triageData.triageResult.badge}
+                        reason={triageData.triageResult.reason}
+                      />
                     )}
 
                     {/* Vehicle Warnings */}

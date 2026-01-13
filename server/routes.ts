@@ -4,6 +4,7 @@ import multer from "multer";
 import { storage } from "./storage";
 import { conversationRequestSchema } from "@shared/schema";
 import { handleAnalyzeDeal } from "./analyze-deal";
+import { handleTriageDeal } from "./triage-deal";
 const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(
@@ -137,6 +138,9 @@ export async function registerRoutes(
 
   // Groq-powered deal insight analyzer
   app.post("/api/analyze-deal", handleAnalyzeDeal);
+
+  // Groq-powered deal triage (Bank-First logic)
+  app.post("/api/triage", handleTriageDeal);
 
   return httpServer;
 }
