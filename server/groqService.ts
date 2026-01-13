@@ -28,6 +28,8 @@ CRITICAL RULES:
 3. Be direct and actionable - give specific dollar amounts or actions
 4. Respect bank rules as immutable constraints
 5. Focus on what CAN be done, not what can't
+6. Return ONLY your analysis text - no JSON, no markdown formatting, no code blocks
+7. Do NOT add any introductory phrases like "Here's my analysis:" - just give the insight directly
 
 Your analysis style:
 - If gap is small (<$50): Encouraging, provide simple solutions
@@ -37,6 +39,15 @@ Your analysis style:
 export async function generateSmartDealInsight(
   request: SmartDealAIRequest
 ): Promise<SmartDealAIResponse> {
+  // Debug logging
+  console.log('Groq Service - Request received:', {
+    vehiclePrice: request.vehiclePrice,
+    targetPayment: request.targetPayment,
+    creditTier: request.creditTier,
+    bestProfitPayment: request.bestProfitPayment,
+    floorPayment: request.floorPayment,
+  });
+
   const groq = getGroqClient();
 
   const gap = request.floorPayment - request.targetPayment;
@@ -58,7 +69,7 @@ export async function generateSmartDealInsight(
     customerIncome: request.customerIncome ? `$${request.customerIncome}/month` : 'Not provided',
   };
 
-  const userPrompt = `Analyze this deal and provide guidance:
+  const userPrompt = `Analyze this deal and provide guidance (2 sentences max, plain text only):
 
 CUSTOMER TARGET: ${contextData.targetPayment}/month
 FLOOR PAYMENT (absolute minimum): ${contextData.actualLowestPayment}/month
@@ -82,6 +93,8 @@ ${scenario === 'realistic'
   : 'Explain why this payment target is mathematically impossible and suggest a pivot strategy.'}`;
 
   try {
+    console.log('Groq Service - Calling Groq API with model: llama3-70b-8192');
+
     const completion = await groq.chat.completions.create({
       model: 'llama3-70b-8192',
       messages: [
@@ -92,9 +105,20 @@ ${scenario === 'realistic'
       temperature: 0.7,
     });
 
-    const insight = completion.choices[0]?.message?.content?.trim() || 'Unable to generate insight.';
+    const rawInsight = completion.choices[0]?.message?.content;
+    console.log('Groq Service - Raw AI response:', rawInsight);
 
-    // Extract suggested actions from the response
+    // Clean up the response - remove any markdown or JSON formatting if present
+    let insight = (rawInsight || 'Unable to generate insight.').trim();
+
+    // Remove common AI prefixes
+    insight = insight.replace(/^(Here's|Here is|Based on|My analysis:|Analysis:)\s*/i, '');
+
+    // Remove markdown code blocks if present
+    insight = insight.replace(/```[\s\S]*?```/g, '').trim();
+    insight = insight.replace(/`/g, '').trim();
+
+    // Extract suggested actions from the response based on gap
     const suggestedActions: string[] = [];
     if (gap <= 50) {
       suggestedActions.push(`Ask for $${Math.round(gap * 60)} more down`);
@@ -108,14 +132,31 @@ ${scenario === 'realistic'
       suggestedActions.push('Re-evaluate customer budget');
     }
 
-    return {
+    const response: SmartDealAIResponse = {
       insight,
       scenario,
       gap: Math.round(gap),
       suggestedActions,
     };
+
+    console.log('Groq Service - Returning response:', response);
+    return response;
   } catch (error) {
-    console.error('Groq API error:', error);
-    throw new Error('Failed to generate AI insight');
+    console.error('Groq Service - API Error:', error);
+
+    // Check for specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('401') || error.message.includes('authentication')) {
+        throw new Error('Groq API authentication failed. Please check your GROQ_API_KEY.');
+      }
+      if (error.message.includes('429') || error.message.includes('rate limit')) {
+        throw new Error('Groq API rate limit exceeded. Please try again in a moment.');
+      }
+      if (error.message.includes('503') || error.message.includes('unavailable')) {
+        throw new Error('Groq API is temporarily unavailable. Please try again.');
+      }
+    }
+
+    throw new Error('Failed to generate AI insight. Please try again.');
   }
 }

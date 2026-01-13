@@ -1,5 +1,5 @@
 // client/src/components/AIInsightCard.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { SmartDealAIRequest, SmartDealAIResponse } from '../../../shared/smartDealAI';
 
 interface AIInsightCardProps {
@@ -9,17 +9,44 @@ interface AIInsightCardProps {
 
 type LoadingState = 'idle' | 'loading' | 'success' | 'error';
 
+// Create a stable cache key from deal data for dependency tracking
+function createCacheKey(data: SmartDealAIRequest | null): string {
+  if (!data) return '';
+  return `${data.vehiclePrice}-${data.targetPayment}-${data.creditTier}-${data.downPayment}-${data.floorPayment}-${data.bestProfitPayment}`;
+}
+
 export function AIInsightCard({ dealData, onRetry }: AIInsightCardProps) {
   const [insight, setInsight] = useState<SmartDealAIResponse | null>(null);
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Create cache key from specific values to detect actual changes
+  const cacheKey = createCacheKey(dealData);
 
   useEffect(() => {
+    // Cancel any pending request when inputs change
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Reset state immediately when deal data changes
+    setInsight(null);
+    setError(null);
+
     if (!dealData) {
-      setInsight(null);
       setLoadingState('idle');
       return;
     }
+
+    // Debug logging
+    console.log('Smart Deal AI - Analyzing deal:', {
+      vehiclePrice: dealData.vehiclePrice,
+      targetPayment: dealData.targetPayment,
+      creditTier: dealData.creditTier,
+      bestProfitPayment: dealData.bestProfitPayment,
+      floorPayment: dealData.floorPayment,
+    });
 
     // Only trigger AI analysis if gap > $50 (dual-calculation strategy)
     const gap = dealData.bestProfitPayment - dealData.targetPayment;
@@ -34,32 +61,77 @@ export function AIInsightCard({ dealData, onRetry }: AIInsightCardProps) {
       return;
     }
 
-    fetchInsight();
-  }, [dealData]);
+    // Fetch AI insight
+    fetchInsight(dealData);
 
-  async function fetchInsight() {
-    if (!dealData) return;
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [cacheKey]); // Use cache key instead of object reference
+
+  async function fetchInsight(data: SmartDealAIRequest) {
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
 
     setLoadingState('loading');
     setError(null);
+
+    console.log('Smart Deal AI - Sending to API:', JSON.stringify(data, null, 2));
 
     try {
       const response = await fetch('/api/smart-deal-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dealData),
+        body: JSON.stringify(data),
+        signal: abortControllerRef.current.signal,
       });
 
+      // Get the raw text first to handle potential non-JSON responses
+      const rawText = await response.text();
+      console.log('Smart Deal AI - Raw response:', rawText.substring(0, 500));
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get AI insight');
+        // Try to parse error as JSON, fallback to raw text
+        let errorMessage = 'Failed to get AI insight';
+        try {
+          const errorData = JSON.parse(rawText);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If not JSON, use status text or raw text
+          errorMessage = response.statusText || rawText.substring(0, 100) || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      const data: SmartDealAIResponse = await response.json();
-      setInsight(data);
+      // Try to parse as JSON with error handling
+      let result: SmartDealAIResponse;
+      try {
+        result = JSON.parse(rawText);
+      } catch (parseError) {
+        console.error('Smart Deal AI - JSON Parse Error:', parseError);
+        console.error('Smart Deal AI - Raw response was:', rawText);
+        throw new Error('Invalid response format from AI service');
+      }
+
+      // Validate the response structure
+      if (!result || typeof result.insight !== 'string') {
+        console.error('Smart Deal AI - Invalid response structure:', result);
+        throw new Error('AI response missing required fields');
+      }
+
+      setInsight(result);
       setLoadingState('success');
     } catch (err) {
-      console.error('AI Insight error:', err);
+      // Ignore abort errors (they're expected when canceling)
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Smart Deal AI - Request aborted (new request started)');
+        return;
+      }
+
+      console.error('Smart Deal AI - Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to get AI insight');
       setLoadingState('error');
     }
@@ -156,7 +228,9 @@ export function AIInsightCard({ dealData, onRetry }: AIInsightCardProps) {
           <button
             onClick={() => {
               onRetry?.();
-              fetchInsight();
+              if (dealData) {
+                fetchInsight(dealData);
+              }
             }}
             className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
           >
