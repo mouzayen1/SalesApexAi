@@ -1,0 +1,169 @@
+{
+  "id": "uac",
+  "name": "United Auto Credit",
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-13",
+  "active": true,
+  "approved": true,
+  "needsReview": false,
+
+  "allowedTerms": [36, 48, 60, 72],
+  "minAmountFinanced": 5000,
+  "maxAmountFinanced": 50000,
+  "maxBackendTotal": 3000,
+  "maxBackendPercent": 20,
+
+  "lenderFeePercent": 2.0,
+  "docFee": 0,
+  "acquisitionFee": 0,
+
+  "tiers": [
+    {
+      "creditTier": "deep_subprime",
+      "minApr": 23,
+      "maxApr": 28,
+      "buyRate": 21,
+      "minDownPercent": 10,
+      "baseAdvancePercent": 115,
+      "maxAdvancePercent": 140,
+      "maxLtvPercent": 140
+    },
+    {
+      "creditTier": "subprime",
+      "minApr": 19,
+      "maxApr": 24,
+      "buyRate": 17,
+      "minDownPercent": 10,
+      "baseAdvancePercent": 112,
+      "maxAdvancePercent": 135,
+      "maxLtvPercent": 135
+    },
+    {
+      "creditTier": "near_prime",
+      "minApr": 14,
+      "maxApr": 20,
+      "buyRate": 12,
+      "minDownPercent": 5,
+      "baseAdvancePercent": 108,
+      "maxAdvancePercent": 125,
+      "maxLtvPercent": 125
+    },
+    {
+      "creditTier": "prime",
+      "minApr": 9,
+      "maxApr": 14,
+      "buyRate": 7,
+      "minDownPercent": 0,
+      "baseAdvancePercent": 105,
+      "maxAdvancePercent": 120,
+      "maxLtvPercent": 120
+    }
+  ],
+
+  "vehicleRestrictions": {
+    "maxAgeYears": 15,
+    "maxMileage": 150000,
+    "excludedMakes": ["Land Rover"]
+  },
+
+  "vehicleRiskAdjustments": [
+    {
+      "make": "Toyota",
+      "multiplier": 1.05,
+      "reason": "Preferred - High reliability"
+    },
+    {
+      "make": "Honda",
+      "multiplier": 1.05,
+      "reason": "Preferred - High reliability"
+    },
+    {
+      "make": "Subaru",
+      "multiplier": 1.08,
+      "reason": "Strong resale, loyal customer base"
+    },
+    {
+      "make": "Hyundai",
+      "multiplier": 0.85,
+      "reason": "Theta II engine recall risk",
+      "yearRange": { "start": 2011, "end": 2022 }
+    },
+    {
+      "make": "Kia",
+      "multiplier": 0.85,
+      "reason": "Theta II engine recall risk",
+      "yearRange": { "start": 2011, "end": 2022 }
+    },
+    {
+      "make": "Nissan",
+      "model": "Rogue",
+      "multiplier": 0.95,
+      "reason": "CVT concerns",
+      "yearRange": { "start": 2014, "end": 2020 }
+    },
+    {
+      "make": "Nissan",
+      "model": "Altima",
+      "multiplier": 0.92,
+      "reason": "CVT concerns",
+      "yearRange": { "start": 2013, "end": 2018 }
+    },
+    {
+      "make": "Ford",
+      "model": "Focus",
+      "multiplier": 0.88,
+      "reason": "PowerShift transmission issues",
+      "yearRange": { "start": 2012, "end": 2018 }
+    },
+    {
+      "make": "Ford",
+      "model": "Fiesta",
+      "multiplier": 0.85,
+      "reason": "PowerShift transmission issues",
+      "yearRange": { "start": 2011, "end": 2019 }
+    },
+    {
+      "make": "Dodge",
+      "model": "Dart",
+      "multiplier": 0.82,
+      "reason": "Discontinued model, parts concerns"
+    },
+    {
+      "make": "Jeep",
+      "model": "Patriot",
+      "multiplier": 0.85,
+      "reason": "Discontinued, reliability concerns"
+    },
+    {
+      "make": "BMW",
+      "multiplier": 0.88,
+      "reason": "High maintenance cost risk"
+    },
+    {
+      "make": "Mercedes",
+      "multiplier": 0.88,
+      "reason": "High maintenance cost risk"
+    },
+    {
+      "make": "Audi",
+      "multiplier": 0.85,
+      "reason": "High maintenance cost risk"
+    }
+  ],
+
+  "customRules": [
+    {
+      "id": "min_down_500",
+      "description": "Minimum $500 down payment required",
+      "condition": "min_down_amount",
+      "value": 500
+    }
+  ],
+
+  "notes": [
+    "Requires minimum $500 down payment",
+    "Higher max amount financed ($50k)",
+    "Conservative backend limits (20% max)"
+  ],
+  "source": "Manual entry from dealer rate sheet"
+}

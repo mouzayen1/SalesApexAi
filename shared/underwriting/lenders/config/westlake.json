@@ -1,0 +1,123 @@
+{
+  "id": "westlake",
+  "name": "Westlake Financial",
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-13",
+  "active": true,
+  "approved": true,
+  "needsReview": false,
+
+  "allowedTerms": [36, 48, 60, 72],
+  "minAmountFinanced": 5000,
+  "maxAmountFinanced": 45000,
+  "maxBackendTotal": 3500,
+  "maxBackendPercent": 25,
+
+  "lenderFeePercent": 3.0,
+  "docFee": 0,
+  "acquisitionFee": 0,
+
+  "tiers": [
+    {
+      "creditTier": "deep_subprime",
+      "minApr": 22,
+      "maxApr": 27,
+      "buyRate": 20,
+      "minDownPercent": 10,
+      "baseAdvancePercent": 115,
+      "maxAdvancePercent": 145,
+      "maxLtvPercent": 145
+    },
+    {
+      "creditTier": "subprime",
+      "minApr": 18,
+      "maxApr": 23,
+      "buyRate": 16,
+      "minDownPercent": 10,
+      "baseAdvancePercent": 115,
+      "maxAdvancePercent": 140,
+      "maxLtvPercent": 140
+    },
+    {
+      "creditTier": "near_prime",
+      "minApr": 12,
+      "maxApr": 18,
+      "buyRate": 10,
+      "minDownPercent": 5,
+      "baseAdvancePercent": 110,
+      "maxAdvancePercent": 130,
+      "maxLtvPercent": 130
+    },
+    {
+      "creditTier": "prime",
+      "minApr": 8,
+      "maxApr": 12,
+      "buyRate": 6,
+      "minDownPercent": 0,
+      "baseAdvancePercent": 105,
+      "maxAdvancePercent": 120,
+      "maxLtvPercent": 120
+    }
+  ],
+
+  "vehicleRestrictions": {
+    "maxAgeYears": 20,
+    "maxMileage": 180000,
+    "excludedMakes": ["Daewoo", "Ferrari"]
+  },
+
+  "vehicleRiskAdjustments": [
+    {
+      "make": "Kia",
+      "multiplier": 0.90,
+      "reason": "Theft Risk - Models without immobilizers",
+      "yearRange": { "start": 2011, "end": 2021 }
+    },
+    {
+      "make": "Hyundai",
+      "multiplier": 0.90,
+      "reason": "Theft Risk - Models without immobilizers",
+      "yearRange": { "start": 2011, "end": 2021 }
+    },
+    {
+      "make": "Toyota",
+      "multiplier": 1.05,
+      "reason": "Preferred - High resale value"
+    },
+    {
+      "make": "Honda",
+      "multiplier": 1.05,
+      "reason": "Preferred - High reliability"
+    },
+    {
+      "make": "Nissan",
+      "model": "Rogue",
+      "multiplier": 0.92,
+      "reason": "CVT transmission concerns",
+      "yearRange": { "start": 2014, "end": 2020 }
+    },
+    {
+      "make": "Ford",
+      "model": "Focus",
+      "multiplier": 0.85,
+      "reason": "PowerShift transmission issues",
+      "yearRange": { "start": 2012, "end": 2018 }
+    }
+  ],
+
+  "customRules": [
+    {
+      "id": "min_down_5pct",
+      "description": "Minimum 5% down payment required",
+      "condition": "min_down_amount",
+      "value": 0.05
+    }
+  ],
+
+  "notes": [
+    "Primary subprime lender",
+    "Strong approval rates for deep subprime",
+    "Accepts vehicles up to 20 years old"
+  ],
+  "source": "Manual entry from dealer rate sheet"
+}

@@ -1,0 +1,122 @@
+{
+  "id": "western_funding",
+  "name": "Western Funding",
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-13",
+  "active": true,
+  "approved": true,
+  "needsReview": false,
+
+  "allowedTerms": [48, 60, 72, 84],
+  "minAmountFinanced": 4000,
+  "maxAmountFinanced": 40000,
+  "maxBackendTotal": 4000,
+  "maxBackendPercent": 30,
+
+  "lenderFeePercent": 2.5,
+  "docFee": 0,
+  "acquisitionFee": 0,
+
+  "tiers": [
+    {
+      "creditTier": "deep_subprime",
+      "minApr": 24,
+      "maxApr": 29,
+      "buyRate": 22,
+      "minDownPercent": 8,
+      "baseAdvancePercent": 120,
+      "maxAdvancePercent": 150,
+      "maxLtvPercent": 150
+    },
+    {
+      "creditTier": "subprime",
+      "minApr": 20,
+      "maxApr": 25,
+      "buyRate": 18,
+      "minDownPercent": 8,
+      "baseAdvancePercent": 115,
+      "maxAdvancePercent": 145,
+      "maxLtvPercent": 145
+    },
+    {
+      "creditTier": "near_prime",
+      "minApr": 14,
+      "maxApr": 20,
+      "buyRate": 12,
+      "minDownPercent": 5,
+      "baseAdvancePercent": 110,
+      "maxAdvancePercent": 135,
+      "maxLtvPercent": 135
+    },
+    {
+      "creditTier": "prime",
+      "minApr": 9,
+      "maxApr": 14,
+      "buyRate": 7,
+      "minDownPercent": 0,
+      "baseAdvancePercent": 105,
+      "maxAdvancePercent": 125,
+      "maxLtvPercent": 125
+    }
+  ],
+
+  "vehicleRestrictions": {
+    "maxAgeYears": 15,
+    "maxMileage": 180000,
+    "excludedMakes": ["Land Rover", "Jaguar", "Saab", "Suzuki"]
+  },
+
+  "vehicleRiskAdjustments": [
+    {
+      "make": "Toyota",
+      "multiplier": 1.05,
+      "reason": "Preferred Make Bonus"
+    },
+    {
+      "make": "Honda",
+      "multiplier": 1.05,
+      "reason": "Preferred Make Bonus"
+    },
+    {
+      "make": "Kia",
+      "multiplier": 0.80,
+      "reason": "High Theft Risk Penalty",
+      "yearRange": { "start": 2011, "end": 2021 }
+    },
+    {
+      "make": "Hyundai",
+      "multiplier": 0.80,
+      "reason": "High Theft Risk Penalty",
+      "yearRange": { "start": 2011, "end": 2021 }
+    },
+    {
+      "make": "Nissan",
+      "model": "Altima",
+      "multiplier": 0.88,
+      "reason": "CVT transmission concerns",
+      "yearRange": { "start": 2013, "end": 2018 }
+    },
+    {
+      "make": "Ford",
+      "model": "Focus",
+      "multiplier": 0.82,
+      "reason": "PowerShift transmission issues",
+      "yearRange": { "start": 2012, "end": 2018 }
+    },
+    {
+      "make": "Dodge",
+      "model": "Journey",
+      "multiplier": 0.85,
+      "reason": "Reliability concerns"
+    }
+  ],
+
+  "customRules": [],
+
+  "notes": [
+    "Higher advance percentages for subprime",
+    "Longer terms available (up to 84 months)",
+    "Excludes some European luxury makes"
+  ],
+  "source": "Manual entry from dealer rate sheet"
+}

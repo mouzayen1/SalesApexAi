@@ -1,0 +1,279 @@
+{
+  "description": "10-deal test suite for accuracy validation",
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-13",
+  "deals": [
+    {
+      "id": "deal_001",
+      "description": "Standard subprime deal - older vehicle",
+      "input": {
+        "vehicleId": "test-001",
+        "vehicleYear": 2018,
+        "vehicleMake": "Honda",
+        "vehicleMileage": 65000,
+        "vehiclePrice": 18000,
+        "vehicleCost": 14500,
+        "taxRate": 0.0925,
+        "fees": 495,
+        "downPayment": 2000,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": true, "vsc": false, "otherProductsTotal": 0 },
+        "customerCreditTier": "subprime",
+        "targetPayment": 450,
+        "paymentTolerance": 50
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "bestLender": "western_funding",
+        "paymentRange": { "min": 350, "max": 550 },
+        "shouldRecommendGap": true,
+        "shouldRecommendVsc": true,
+        "notes": "Honda preferred at Western Funding, out of warranty due to age (8+ years) and mileage"
+      }
+    },
+    {
+      "id": "deal_002",
+      "description": "Deep subprime with Kia theft risk",
+      "input": {
+        "vehicleId": "test-002",
+        "vehicleYear": 2017,
+        "vehicleMake": "Kia",
+        "vehicleMileage": 85000,
+        "vehiclePrice": 12000,
+        "vehicleCost": 9000,
+        "taxRate": 0.08,
+        "fees": 450,
+        "downPayment": 1500,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": false, "vsc": false, "otherProductsTotal": 0 },
+        "customerCreditTier": "deep_subprime",
+        "targetPayment": 350,
+        "paymentTolerance": 50
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "vehicleWarningsExpected": true,
+        "advanceMultiplierLessThan1": true,
+        "notes": "Should have theft risk penalty applied"
+      }
+    },
+    {
+      "id": "deal_003",
+      "description": "Near prime Toyota - preferred vehicle",
+      "input": {
+        "vehicleId": "test-003",
+        "vehicleYear": 2020,
+        "vehicleMake": "Toyota",
+        "vehicleMileage": 35000,
+        "vehiclePrice": 24000,
+        "vehicleCost": 20000,
+        "taxRate": 0.075,
+        "fees": 500,
+        "downPayment": 3000,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": true, "vsc": true, "otherProductsTotal": 0 },
+        "customerCreditTier": "near_prime",
+        "targetPayment": 500,
+        "paymentTolerance": 50
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "shouldRecommendGap": false,
+        "shouldRecommendVsc": true,
+        "notes": "Toyota should have preferred multiplier at Western Funding. VSC recommended due to age (6+ years out of warranty)"
+      }
+    },
+    {
+      "id": "deal_004",
+      "description": "Upside down deal - LTV > 100%",
+      "input": {
+        "vehicleId": "test-004",
+        "vehicleYear": 2019,
+        "vehicleMake": "Ford",
+        "vehicleMileage": 55000,
+        "vehiclePrice": 22000,
+        "vehicleCost": 18000,
+        "taxRate": 0.0925,
+        "fees": 495,
+        "downPayment": 500,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": false, "vsc": false, "otherProductsTotal": 0 },
+        "customerCreditTier": "subprime",
+        "targetPayment": 550,
+        "paymentTolerance": 75
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "shouldRecommendGap": true,
+        "ltvOver100": true,
+        "notes": "Low down payment should trigger GAP recommendation"
+      }
+    },
+    {
+      "id": "deal_005",
+      "description": "Trade-in with payoff",
+      "input": {
+        "vehicleId": "test-005",
+        "vehicleYear": 2017,
+        "vehicleMake": "Chevrolet",
+        "vehicleMileage": 95000,
+        "vehiclePrice": 15000,
+        "vehicleCost": 11500,
+        "taxRate": 0.06,
+        "fees": 400,
+        "downPayment": 1000,
+        "tradeAllowance": 5000,
+        "tradePayoff": 3500,
+        "backendProducts": { "gap": true, "vsc": true, "otherProductsTotal": 200 },
+        "customerCreditTier": "subprime",
+        "targetPayment": 380,
+        "paymentTolerance": 40
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "shouldRecommendVsc": true,
+        "notes": "Trade equity helps, high mileage triggers VSC"
+      }
+    },
+    {
+      "id": "deal_006",
+      "description": "Prime customer - low rates",
+      "input": {
+        "vehicleId": "test-006",
+        "vehicleYear": 2022,
+        "vehicleMake": "Honda",
+        "vehicleMileage": 15000,
+        "vehiclePrice": 28000,
+        "vehicleCost": 24000,
+        "taxRate": 0.0825,
+        "fees": 500,
+        "downPayment": 5000,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": false, "vsc": false, "otherProductsTotal": 0 },
+        "customerCreditTier": "prime",
+        "targetPayment": 500,
+        "paymentTolerance": 50
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "aprRange": { "min": 8, "max": 14 },
+        "shouldRecommendGap": false,
+        "shouldRecommendVsc": true,
+        "notes": "Prime customer, VSC recommended due to vehicle age (4+ years out of factory warranty)"
+      }
+    },
+    {
+      "id": "deal_007",
+      "description": "Excluded make test - Land Rover",
+      "input": {
+        "vehicleId": "test-007",
+        "vehicleYear": 2018,
+        "vehicleMake": "Land Rover",
+        "vehicleMileage": 55000,
+        "vehiclePrice": 35000,
+        "vehicleCost": 28000,
+        "taxRate": 0.09,
+        "fees": 600,
+        "downPayment": 5000,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": true, "vsc": true, "otherProductsTotal": 0 },
+        "customerCreditTier": "near_prime",
+        "targetPayment": 650,
+        "paymentTolerance": 75
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "expectedLender": "westlake",
+        "excludedFromLenders": ["western_funding", "uac"],
+        "notes": "Land Rover excluded from WF and UAC"
+      }
+    },
+    {
+      "id": "deal_008",
+      "description": "Old vehicle test - 2010",
+      "input": {
+        "vehicleId": "test-008",
+        "vehicleYear": 2010,
+        "vehicleMake": "Toyota",
+        "vehicleMileage": 145000,
+        "vehiclePrice": 8500,
+        "vehicleCost": 6000,
+        "taxRate": 0.07,
+        "fees": 400,
+        "downPayment": 1500,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": false, "vsc": true, "otherProductsTotal": 0 },
+        "customerCreditTier": "subprime",
+        "targetPayment": 250,
+        "paymentTolerance": 50
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "expectedLender": "westlake",
+        "shouldRecommendVsc": true,
+        "notes": "Old vehicle, Westlake accepts up to 20 years"
+      }
+    },
+    {
+      "id": "deal_009",
+      "description": "Hyundai 2015 - theft risk year",
+      "input": {
+        "vehicleId": "test-009",
+        "vehicleYear": 2015,
+        "vehicleMake": "Hyundai",
+        "vehicleMileage": 75000,
+        "vehiclePrice": 11000,
+        "vehicleCost": 8500,
+        "taxRate": 0.08,
+        "fees": 450,
+        "downPayment": 1200,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": true, "vsc": false, "otherProductsTotal": 0 },
+        "customerCreditTier": "deep_subprime",
+        "targetPayment": 320,
+        "paymentTolerance": 40
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "vehicleWarningsExpected": true,
+        "advanceMultiplierLessThan1": true,
+        "notes": "2015 Hyundai in theft risk range"
+      }
+    },
+    {
+      "id": "deal_010",
+      "description": "High income PTI test",
+      "input": {
+        "vehicleId": "test-010",
+        "vehicleYear": 2019,
+        "vehicleMake": "Nissan",
+        "vehicleMileage": 42000,
+        "vehiclePrice": 20000,
+        "vehicleCost": 16000,
+        "taxRate": 0.0775,
+        "fees": 475,
+        "downPayment": 2500,
+        "tradeAllowance": 0,
+        "tradePayoff": 0,
+        "backendProducts": { "gap": true, "vsc": true, "otherProductsTotal": 0 },
+        "customerCreditTier": "subprime",
+        "targetPayment": 425,
+        "paymentTolerance": 50,
+        "monthlyIncome": 4500
+      },
+      "expected": {
+        "hasValidCandidates": true,
+        "ptiShouldPass": true,
+        "notes": "Income sufficient for payment at subprime PTI limit"
+      }
+    }
+  ]
+}
