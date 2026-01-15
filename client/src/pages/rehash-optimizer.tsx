@@ -1,5 +1,5 @@
 // client/src/pages/rehash-optimizer.tsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -240,59 +240,67 @@ export default function RehashOptimizerPage() {
     queryKey: ["car", vehicleId],
     queryFn: () => (vehicleId ? fetchCarById(vehicleId) : null),
     enabled: !!vehicleId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - prevent unnecessary refetches
   });
 
-  // Deal input state - initialized once when vehicle loads
+  // Deal input state
   const [dealInput, setDealInput] = useState<DealInput>(createDefaultDealInput);
-  // Track which vehicleId was used to initialize the form
-  const [initializedForVehicleId, setInitializedForVehicleId] = useState<string | null>(null);
-
-  // Reset and initialize deal input when vehicle changes
-  useEffect(() => {
-    // If we have a new vehicleId that differs from what we initialized for
-    if (vehicleId && vehicleId !== initializedForVehicleId && vehicle) {
-      setDealInput(createDealInputFromVehicle(vehicle));
-      setInitializedForVehicleId(vehicleId);
-      setResults(null); // Clear previous results
-      setSelectedDeal(null);
-    } else if (!vehicleId && initializedForVehicleId !== "") {
-      // No vehicleId provided, reset to defaults
-      setDealInput(createDefaultDealInput());
-      setInitializedForVehicleId("");
-      setResults(null);
-      setSelectedDeal(null);
-    }
-  }, [vehicle, vehicleId, initializedForVehicleId]);
-
   const [results, setResults] = useState<{
     bestDeal: DealCandidate | null;
     allCandidates: DealCandidate[];
   } | null>(null);
-
   const [selectedDeal, setSelectedDeal] = useState<DealCandidate | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const handleFindLenders = useCallback(() => {
+  // Track which vehicleId was used to initialize the form (using ref to avoid re-renders)
+  const initializedForVehicleIdRef = useRef<string | null>(null);
+  const shouldAutoRunRef = useRef(false);
+
+  // Reset and initialize deal input when vehicle changes
+  useEffect(() => {
+    // If we have a new vehicleId that differs from what we initialized for
+    if (vehicleId && vehicleId !== initializedForVehicleIdRef.current && vehicle) {
+      setDealInput(createDealInputFromVehicle(vehicle));
+      initializedForVehicleIdRef.current = vehicleId;
+      setResults(null);
+      setSelectedDeal(null);
+      shouldAutoRunRef.current = true; // Flag to auto-run calculation
+    } else if (!vehicleId && initializedForVehicleIdRef.current !== "") {
+      // No vehicleId provided, reset to defaults
+      setDealInput(createDefaultDealInput());
+      initializedForVehicleIdRef.current = "";
+      setResults(null);
+      setSelectedDeal(null);
+      shouldAutoRunRef.current = true;
+    }
+  }, [vehicle, vehicleId]);
+
+  // Run calculation function
+  const runCalculation = useCallback((input: DealInput) => {
     setIsCalculating(true);
-    // Small timeout for UI feedback
-    setTimeout(() => {
-      const rehashResults = runRehash(dealInput);
+    // Use requestAnimationFrame for smoother UI
+    requestAnimationFrame(() => {
+      const rehashResults = runRehash(input);
       setResults(rehashResults);
       if (rehashResults.bestDeal) {
         setSelectedDeal(rehashResults.bestDeal);
       }
       setIsCalculating(false);
-    }, 100);
-  }, [dealInput]);
+    });
+  }, []);
 
-  // Auto-run when vehicle is loaded/changed
+  // Auto-run calculation after vehicle initialization
   useEffect(() => {
-    // Run calculation when we have initialized for a vehicle (or for no vehicle) and don't have results yet
-    const isInitialized = initializedForVehicleId !== null;
-    if (isInitialized && !results && !isCalculating) {
-      handleFindLenders();
+    if (shouldAutoRunRef.current && !isCalculating) {
+      shouldAutoRunRef.current = false;
+      runCalculation(dealInput);
     }
-  }, [initializedForVehicleId, results, isCalculating, handleFindLenders]);
+  }, [dealInput, isCalculating, runCalculation]);
+
+  // Manual trigger for "Find Best Lenders" button
+  const handleFindLenders = useCallback(() => {
+    runCalculation(dealInput);
+  }, [dealInput, runCalculation]);
 
   const handleInputChange = (field: keyof DealInput, value: DealInput[keyof DealInput]) => {
     setDealInput((prev) => ({ ...prev, [field]: value }));
