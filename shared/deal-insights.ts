@@ -2,6 +2,7 @@
 // Pure utility functions for computing badges, AI insights, and smart decisions
 
 import type { DealInput, DealCandidate, CreditTier } from './deals';
+import type { RuleHit } from './lender-rules';
 
 // ============================================================================
 // TYPES
@@ -30,22 +31,6 @@ export interface SmartDecision {
 // CONSTANTS
 // ============================================================================
 
-// High theft risk vehicles (common models targeted for theft)
-const HIGH_THEFT_RISK_MAKES = [
-  'Hyundai', 'Kia', 'Honda', 'Toyota', 'Chevrolet', 'Ford', 'Dodge', 'Chrysler'
-];
-
-const HIGH_THEFT_RISK_MODELS: Record<string, string[]> = {
-  'Hyundai': ['Elantra', 'Sonata', 'Accent', 'Santa Fe'],
-  'Kia': ['Optima', 'Forte', 'Soul', 'Sportage', 'Rio'],
-  'Honda': ['Civic', 'Accord', 'CR-V'],
-  'Toyota': ['Camry', 'Corolla', 'RAV4'],
-  'Chevrolet': ['Silverado', 'Malibu', 'Equinox'],
-  'Ford': ['F-150', 'Explorer', 'Escape'],
-  'Dodge': ['Charger', 'Challenger', 'Ram'],
-  'Chrysler': ['300']
-};
-
 // Warranty thresholds (typical factory warranty)
 const WARRANTY_YEARS = 5;
 const WARRANTY_MILES = 60000;
@@ -59,18 +44,28 @@ export const CREDIT_TIER_LABELS: Record<CreditTier, string> = {
 };
 
 // ============================================================================
-// BADGE COMPUTATION
+// BADGE COMPUTATION - DERIVED FROM RULE HITS
 // ============================================================================
 
+/**
+ * Compute vehicle badges based on deal input and lender rule hits.
+ * The "High Theft Risk" badge is ONLY shown if there is at least one
+ * RuleHit with code === 'THEFT_RISK' from the lender rules engine.
+ *
+ * This ensures non-theft penalties (e.g., Chevy Cruze MODEL_RISK) do NOT
+ * incorrectly show as theft risk.
+ */
 export function computeBadges(
   dealInput: DealInput,
   bestDeal: DealCandidate | null,
   vehicleMake?: string,
-  vehicleModel?: string
+  vehicleModel?: string,
+  allRuleHits?: RuleHit[]
 ): VehicleBadge[] {
   const badges: VehicleBadge[] = [];
   const currentYear = new Date().getFullYear();
   const vehicleAge = currentYear - dealInput.vehicleYear;
+  const ruleHits = allRuleHits || [];
 
   // LTV Badge - Upside Down Warning
   if (bestDeal && bestDeal.ltv > 100) {
@@ -87,7 +82,7 @@ export function computeBadges(
     });
   }
 
-  // Warranty Status Badge
+  // Warranty Status Badge (not derived from rule hits - universal logic)
   const outOfWarranty = vehicleAge > WARRANTY_YEARS || dealInput.vehicleMileage > WARRANTY_MILES;
   if (outOfWarranty) {
     badges.push({
@@ -97,18 +92,41 @@ export function computeBadges(
     });
   }
 
-  // High Theft Risk Badge
-  const make = vehicleMake || dealInput.vehicleMake;
-  if (make && isHighTheftRisk(make, vehicleModel, dealInput.vehicleYear)) {
+  // HIGH THEFT RISK Badge - ONLY if THEFT_RISK rule hit exists
+  const theftRiskHits = ruleHits.filter(h => h.code === 'THEFT_RISK');
+  if (theftRiskHits.length > 0) {
+    // Get unique lenders with theft risk
+    const lendersWithTheftRisk = [...new Set(theftRiskHits.map(h => h.lender))];
+    const detail = theftRiskHits[0].label; // Use first hit's label
     badges.push({
       label: 'High Theft Risk',
-      type: 'warning',
-      detail: `${make} ${dealInput.vehicleYear} (-20% advance)`
+      type: 'danger',
+      detail: `${detail} (${lendersWithTheftRisk.length} lender${lendersWithTheftRisk.length > 1 ? 's' : ''} penalize)`
     });
   }
 
-  // High Mileage Badge
-  if (dealInput.vehicleMileage > 100000) {
+  // Model Risk Badge - for MODEL_RISK hits (non-theft)
+  const modelRiskHits = ruleHits.filter(h => h.code === 'MODEL_RISK');
+  if (modelRiskHits.length > 0 && theftRiskHits.length === 0) {
+    // Only show model risk if no theft risk (avoid double badges)
+    const uniqueLabels = [...new Set(modelRiskHits.map(h => h.label))];
+    badges.push({
+      label: 'Model Risk Penalty',
+      type: 'warning',
+      detail: uniqueLabels[0]
+    });
+  }
+
+  // Mileage Risk Badge - for MILEAGE_RISK hits
+  const mileageRiskHits = ruleHits.filter(h => h.code === 'MILEAGE_RISK');
+  if (mileageRiskHits.length > 0) {
+    badges.push({
+      label: 'High Mileage Penalty',
+      type: 'warning',
+      detail: `${dealInput.vehicleMileage.toLocaleString()} miles - lender penalty applies`
+    });
+  } else if (dealInput.vehicleMileage > 100000) {
+    // Fallback: show high mileage even if no specific rule hit
     badges.push({
       label: 'High Mileage',
       type: 'warning',
@@ -116,8 +134,16 @@ export function computeBadges(
     });
   }
 
-  // Old Vehicle Badge
-  if (vehicleAge > 10) {
+  // Age Risk Badge - for AGE_RISK hits
+  const ageRiskHits = ruleHits.filter(h => h.code === 'AGE_RISK');
+  if (ageRiskHits.length > 0) {
+    badges.push({
+      label: 'Age Penalty',
+      type: 'warning',
+      detail: ageRiskHits[0].label
+    });
+  } else if (vehicleAge > 10) {
+    // Fallback: show aged vehicle even if no specific rule hit
     badges.push({
       label: 'Aged Vehicle',
       type: 'info',
@@ -125,7 +151,37 @@ export function computeBadges(
     });
   }
 
-  // Negative Equity on Trade
+  // Excluded Make Badge - if any lender excludes this make
+  const excludedMakeHits = ruleHits.filter(h => h.code === 'EXCLUDED_MAKE');
+  if (excludedMakeHits.length > 0) {
+    const lenders = [...new Set(excludedMakeHits.map(h => h.lender))];
+    badges.push({
+      label: 'Excluded by Lenders',
+      type: 'danger',
+      detail: `${lenders.length} lender${lenders.length > 1 ? 's' : ''} won't finance this make`
+    });
+  }
+
+  // Bonus indicators (positive badges)
+  const bonusHits = ruleHits.filter(h =>
+    h.code === 'BONUS_MAKE' ||
+    h.code === 'BONUS_MODEL' ||
+    h.code === 'BONUS_AGE' ||
+    h.code === 'BONUS_MILEAGE'
+  );
+  if (bonusHits.length > 0) {
+    const bestBonus = Math.max(...bonusHits.map(h => h.factor || 1.0));
+    if (bestBonus > 1.0) {
+      const bonusPct = ((bestBonus - 1) * 100).toFixed(0);
+      badges.push({
+        label: `Lender Preferred (+${bonusPct}%)`,
+        type: 'info',
+        detail: bonusHits[0].label
+      });
+    }
+  }
+
+  // Negative Equity on Trade (universal logic)
   if (dealInput.tradePayoff > dealInput.tradeAllowance && dealInput.tradeAllowance > 0) {
     const negEquity = dealInput.tradePayoff - dealInput.tradeAllowance;
     badges.push({
@@ -136,36 +192,6 @@ export function computeBadges(
   }
 
   return badges;
-}
-
-function isHighTheftRisk(make: string, model?: string, year?: number): boolean {
-  const normalizedMake = make.trim();
-
-  // Check if make is in high theft list
-  if (!HIGH_THEFT_RISK_MAKES.some(m =>
-    normalizedMake.toLowerCase() === m.toLowerCase()
-  )) {
-    return false;
-  }
-
-  // Special case: Hyundai/Kia from 2015-2021 without immobilizers
-  if (['Hyundai', 'Kia'].some(m => normalizedMake.toLowerCase() === m.toLowerCase())) {
-    if (year && year >= 2015 && year <= 2021) {
-      return true;
-    }
-  }
-
-  // Check specific model if provided
-  if (model) {
-    const modelsForMake = HIGH_THEFT_RISK_MODELS[normalizedMake];
-    if (modelsForMake) {
-      return modelsForMake.some(m =>
-        model.toLowerCase().includes(m.toLowerCase())
-      );
-    }
-  }
-
-  return false;
 }
 
 // ============================================================================

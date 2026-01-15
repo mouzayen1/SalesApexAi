@@ -1,10 +1,18 @@
 // shared/rehash.ts
 import type { DealInput, DealCandidate } from './deals';
 import { LENDERS, LenderConfig } from './lenders';
+import {
+  isEligible,
+  getPreferenceMultiplier,
+  type VehicleInfo,
+  type RuleHit,
+} from './lender-rules';
 
 export interface RehashResult {
   bestDeal: DealCandidate | null;
   allCandidates: DealCandidate[];
+  // Aggregated rule hits across all evaluated lenders
+  allRuleHits: RuleHit[];
 }
 
 export function calculateMonthlyPayment(
@@ -38,7 +46,8 @@ function estimateNetCheckAndProfit(
   lender: LenderConfig,
   tierRow: { baseAdvancePercent: number; maxAdvancePercent: number; maxLtvPercent: number },
   amountFinanced: number,
-  backendTotal: number
+  backendTotal: number,
+  preferenceFactor: number = 1.0 // Lender preference multiplier
 ): {
   netCheckToDealer: number;
   dealerFrontGross: number;
@@ -50,8 +59,14 @@ function estimateNetCheckAndProfit(
   const vehicleValue = deal.vehiclePrice;
   const ltv = vehicleValue > 0 ? (amountFinanced / vehicleValue) * 100 : 999;
 
-  const baseAdvance = (tierRow.baseAdvancePercent / 100) * deal.vehicleCost;
-  const maxAdvanceByCost = (tierRow.maxAdvancePercent / 100) * deal.vehicleCost;
+  // Apply preference factor to advance percentages
+  // A factor < 1.0 means penalty (reduced advance)
+  // A factor > 1.0 means bonus (increased advance)
+  const adjustedBaseAdvancePct = tierRow.baseAdvancePercent * preferenceFactor;
+  const adjustedMaxAdvancePct = tierRow.maxAdvancePercent * preferenceFactor;
+
+  const baseAdvance = (adjustedBaseAdvancePct / 100) * deal.vehicleCost;
+  const maxAdvanceByCost = (adjustedMaxAdvancePct / 100) * deal.vehicleCost;
   const maxAdvanceByLtv = (tierRow.maxLtvPercent / 100) * vehicleValue;
 
   const grossAdvance = Math.min(amountFinanced, maxAdvanceByCost, maxAdvanceByLtv);
@@ -77,13 +92,39 @@ function estimateNetCheckAndProfit(
 
 export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): RehashResult {
   const candidates: DealCandidate[] = [];
+  const allRuleHits: RuleHit[] = [];
 
   const activeLenders = lenders.filter(l => l.active);
 
+  // Build vehicle info for rules engine
+  const vehicleInfo: VehicleInfo = {
+    make: deal.vehicleMake || '',
+    model: deal.vehicleModel || '',
+    year: deal.vehicleYear,
+    mileage: deal.vehicleMileage,
+  };
+
   activeLenders.forEach(lender => {
+    // Check eligibility using rules engine
+    const eligibility = isEligible(lender.id, vehicleInfo);
+    if (!eligibility.eligible) {
+      // Store ineligibility reasons but skip this lender
+      allRuleHits.push(...eligibility.reasons);
+      return;
+    }
+
+    // Also check basic lender config constraints (for lenders not in rules config)
     const vehicleAge = new Date().getFullYear() - deal.vehicleYear;
     if (vehicleAge > lender.maxVehicleAgeYears) return;
     if (deal.vehicleMileage > lender.maxMiles) return;
+
+    // Get preference multiplier from rules engine
+    const preferenceResult = getPreferenceMultiplier(lender.id, vehicleInfo);
+    const preferenceFactor = preferenceResult.factor;
+    const preferenceHits = preferenceResult.hits;
+
+    // Collect all rule hits for this lender
+    allRuleHits.push(...preferenceHits);
 
     const tierRow = lender.pricingGrid.find(p => p.creditTier === deal.customerCreditTier);
     if (!tierRow) return;
@@ -132,6 +173,7 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
 
           const payment = calculateMonthlyPayment(amountFinanced, apr, term);
 
+          // Pass preference factor to affect net check calculation
           const {
             netCheckToDealer,
             dealerFrontGross,
@@ -144,11 +186,20 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             lender,
             tierRow,
             amountFinanced,
-            scenario.value
+            scenario.value,
+            preferenceFactor
           );
 
           const adjustments: string[] = [];
           adjustments.push(`${lender.name}: ${term} months @ ${apr.toFixed(2)}% APR`);
+
+          // Add preference factor info to adjustments if not 1.0
+          if (preferenceFactor !== 1.0) {
+            const factorPct = ((preferenceFactor - 1) * 100).toFixed(0);
+            const sign = preferenceFactor > 1 ? '+' : '';
+            adjustments.push(`Lender preference adjustment: ${sign}${factorPct}%`);
+          }
+
           if (down !== deal.downPayment) {
             adjustments.push(
               `Increased down from $${deal.downPayment.toFixed(0)} to $${down.toFixed(0)}`
@@ -179,6 +230,8 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             withinGuidelines: true,
             reasons: check.reasons,
             adjustments,
+            preferenceFactor,
+            ruleHits: preferenceHits,
           };
 
           candidates.push(candidate);
@@ -203,5 +256,5 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
   });
 
   const bestDeal = sorted.length > 0 ? sorted[0] : null;
-  return { bestDeal, allCandidates: sorted };
+  return { bestDeal, allCandidates: sorted, allRuleHits };
 }

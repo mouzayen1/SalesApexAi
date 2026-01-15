@@ -1,4 +1,6 @@
 // shared/deals.ts
+import type { RuleHit } from './lender-rules';
+
 export type CreditTier = 'deep_subprime' | 'subprime' | 'near_prime' | 'prime';
 
 export interface BackendProducts {
@@ -14,6 +16,7 @@ export interface DealInput {
   vehiclePrice: number;      // Selling price (before tax/fees)
   vehicleCost: number;        // Dealer cost (for profit calculation)
   vehicleMake?: string;       // Make for theft risk calculation
+  vehicleModel?: string;      // Model for risk calculation
   taxRate: number;            // e.g., 0.09 for 9%
   fees: number;               // Doc + DMV + misc dealer fees
   downPayment: number;        // Customer cash down
@@ -44,6 +47,8 @@ export interface DealCandidate {
   withinGuidelines: boolean;
   reasons: string[];
   adjustments: string[];      // Human-readable changes made
+  preferenceFactor?: number;  // Lender preference multiplier applied
+  ruleHits?: RuleHit[];       // Lender rule hits for this vehicle
 }
 
 export interface DealConstraintsResult {

@@ -40,6 +40,7 @@ import {
   type AiInsight,
   type SmartDecision,
 } from "../../../shared/deal-insights";
+import type { RuleHit } from "../../../shared/lender-rules";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -235,6 +236,7 @@ function createDealInputFromVehicle(vehicle: CarType): DealInput {
     vehiclePrice: vehicle.price,
     vehicleCost: estimatedCost,
     vehicleMake: vehicle.make,
+    vehicleModel: vehicle.model,
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -257,6 +259,7 @@ function createDefaultDealInput(): DealInput {
     vehiclePrice: 25000,
     vehicleCost: 21000,
     vehicleMake: undefined,
+    vehicleModel: undefined,
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -291,6 +294,7 @@ export default function RehashOptimizerPage() {
   const [results, setResults] = useState<{
     bestDeal: DealCandidate | null;
     allCandidates: DealCandidate[];
+    allRuleHits: RuleHit[];
   } | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<DealCandidate | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -355,9 +359,10 @@ export default function RehashOptimizerPage() {
       dealInput,
       results?.bestDeal || null,
       vehicle?.make,
-      vehicle?.model
+      vehicle?.model,
+      results?.allRuleHits || []
     );
-  }, [dealInput, results?.bestDeal, vehicle?.make, vehicle?.model]);
+  }, [dealInput, results?.bestDeal, results?.allRuleHits, vehicle?.make, vehicle?.model]);
 
   const aiInsight = useMemo<AiInsight>(() => {
     return computeAiInsight(
