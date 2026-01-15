@@ -24,3 +24,24 @@ export async function fetchCars(params: CarsSearchParams = {}): Promise<Car[]> {
   const data = await res.json();
   return data; // API returns Car[] directly
 }
+
+export async function fetchCarById(id: string): Promise<Car | null> {
+  // First try the direct API endpoint
+  try {
+    const res = await fetch(`/api/cars/${id}`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // Fall through to search all cars
+  }
+
+  // Fallback: fetch all cars and find by ID
+  try {
+    const cars = await fetchCars({});
+    const car = cars.find((c: Car) => String(c.id) === String(id));
+    return car || null;
+  } catch {
+    return null;
+  }
+}
