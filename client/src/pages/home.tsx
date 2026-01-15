@@ -1,161 +1,95 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Car as CarIcon, Trash2, Volume2, VolumeX, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, X, Filter, Loader2, Car as CarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { VoiceInterface } from "@/components/voice-interface";
-import { CarInventory } from "@/components/car-inventory";
+import { Input } from "@/components/ui/input";
+import { VehicleCard, VehicleCardSkeleton } from "@/components/VehicleCard";
+import { FiltersPanel, FilterValues } from "@/components/FiltersPanel";
+import { PaymentCalculator, CalculatorValues } from "@/components/PaymentCalculator";
+import { VoiceSearchButton } from "@/components/VoiceSearchButton";
+import { useVoiceSearch } from "@/hooks/useVoiceSearch";
 import { useToast } from "@/hooks/use-toast";
-import type { Message, Car } from "@shared/schema";
+import type { Car } from "@shared/schema";
 import { extractFilters, type Filters } from "@/lib/extractFilters";
-import { filterInventory, type FilterResult } from "@/lib/filterInventory";
+import { filterInventory } from "@/lib/filterInventory";
 import { normalizeFilters } from "@/lib/normalizeFilters";
-import { parseBudgetIntent } from "../lib/parseBudgetIntent";
-import { chooseTermForBudget } from "../lib/budgetFit";
-import ResultsBottomSheet from "@/components/ResultsBottomSheet";
-import PaymentCalculatorPanel, { PaymentAssumptions } from "../components/PaymentCalculatorPanel";
-import { calcMonthlyPayment } from "../lib/payment";
+import { parseBudgetIntent } from "@/lib/parseBudgetIntent";
+import { chooseTermForBudget } from "@/lib/budgetFit";
+import { calcMonthlyPayment } from "@/lib/payment";
 import { fetchCars, type CarsSearchParams } from "@/lib/api";
-
-// Test phrases for quick testing
-const TEST_PHRASES = [
-  "Show me all vehicles under 30k",
-  "Find a 2021 or newer Honda under 30K",  "Show me only electric vehicles",
-  "Truck 4WD under 32k less than 70k miles",
-  "Find only coupe 2 door vehicles",
-];
+import { cn } from "@/lib/utils";
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [systemMessage, setSystemMessage] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [currentFilters, setCurrentFilters] = useState<Filters>({});
-  const [debugOpen, setDebugOpen] = useState(false);
-  
-  // Bottom sheet state
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetTitle, setSheetTitle] = useState("");
-  const [sheetSubtitle, setSheetSubtitle] = useState("");
-  const [sheetResults, setSheetResults] = useState<FilterResult | null>(null);
-    const [budgetMatches, setBudgetMatches] = useState<Record<string, {payment: number; termMonths: number}>>({});
-  const [budgetSummary, setBudgetSummary] = useState<string>("");
-    const [paymentAssumptions, setPaymentAssumptions] = useState<PaymentAssumptions>({
+  const { toast } = useToast();
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<FilterValues>({});
+
+  // Calculator state
+  const [calculatorEnabled, setCalculatorEnabled] = useState(false);
+  const [calculatorValues, setCalculatorValues] = useState<CalculatorValues>({
     down: 5000,
-    targetMonthly: 400,
     apr: 13.99,
     termMonths: 72,
     taxRate: 0.09,
     fees: 600,
-    tolerance: 25
   });
-  const [budgetFilterEnabled, setBudgetFilterEnabled] = useState(false);
-  const [carPayments, setCarPayments] = useState<Record<string, number>>({});
-  const [baseFilteredCars, setBaseFilteredCars] = useState<Car[]>([]);
-    // Budget filter defaults
+
+  // Voice filter state (from voice transcription)
+  const [voiceFilters, setVoiceFilters] = useState<Filters>({});
+  const [budgetMatches, setBudgetMatches] = useState<Record<string, { payment: number; termMonths: number }>>({});
+
+  // Budget filter defaults
   const DEFAULT_TERMS = [48, 60, 72, 84];
   const DEFAULT_APR = 13.99;
   const DEFAULT_TAX_RATE = 0.09;
   const DEFAULT_FEES = 600;
   const DEFAULT_TOLERANCE = 25;
 
-// Convert normalized filters to API search params
-  const searchParams: CarsSearchParams = {
-    maxPrice: currentFilters.maxPrice,
-    minPrice: currentFilters.minPrice,
-    make: currentFilters.make?.[0], // API expects single make
-    year: currentFilters.minYear,
-    color: currentFilters.color?.[0],
-    fuelType: currentFilters.fuel?.[0],
-  };
+  // Convert filters to API search params
+  const searchParams: CarsSearchParams = useMemo(() => ({
+    maxPrice: filters.maxPrice || voiceFilters.maxPrice,
+    minPrice: filters.minPrice || voiceFilters.minPrice,
+    make: (filters.make?.[0]) || voiceFilters.make?.[0],
+    year: filters.minYear || voiceFilters.minYear,
+    color: filters.color?.[0] || voiceFilters.color?.[0],
+    fuelType: filters.fuel?.[0] || voiceFilters.fuel?.[0],
+    q: searchQuery || undefined,
+  }), [filters, voiceFilters, searchQuery]);
 
-  const { data: inventory = [], isLoading, error } = useQuery<Car[]>({
+  // Fetch inventory
+  const { data: inventory = [], isLoading, error, refetch } = useQuery<Car[]>({
     queryKey: ["cars", searchParams],
     queryFn: () => fetchCars(searchParams),
   });
-  const { toast } = useToast();
 
-    // Compute monthly payments for all visible cars
-  useEffect(() => {
-    const carsToDisplay = sheetResults?.results ?? [];
-    const map: Record<string, number> = {};
+  // Handle voice transcription
+  const handleVoiceTranscript = useCallback((text: string) => {
+    console.log("[Home] Voice transcript:", text);
+    setSearchQuery(text);
 
-    for (const car of carsToDisplay) {
-      const { monthlyPayment } = calcMonthlyPayment({
-        price: car.price,
-        down: paymentAssumptions.down,
-        apr: paymentAssumptions.apr,
-        termMonths: paymentAssumptions.termMonths,
-        taxRate: paymentAssumptions.taxRate,
-        fees: paymentAssumptions.fees
-      });
-      map[car.id] = monthlyPayment;
-    }
-
-    setCarPayments(map);
-  }, [sheetResults, paymentAssumptions]);
-
-    // Apply budget filter
-  function applyBudgetFilter() {
-    setBudgetFilterEnabled(true);
-    
-    const baseList = baseFilteredCars.length > 0 ? baseFilteredCars : (inventory ?? []);
-    
-    const results = baseList.filter((car) => {
-      const { monthlyPayment } = calcMonthlyPayment({
-        price: car.price,
-        down: paymentAssumptions.down,
-        apr: paymentAssumptions.apr,
-        termMonths: paymentAssumptions.termMonths,
-        taxRate: paymentAssumptions.taxRate,
-        fees: paymentAssumptions.fees
-      });
-      return Math.abs(monthlyPayment - paymentAssumptions.targetMonthly) <= paymentAssumptions.tolerance;
-    });
-    
-    setSheetResults({ results, filters: currentFilters });
-    setSheetTitle(`Found ${results.length} vehicles`);
-    setSheetSubtitle(`~$${paymentAssumptions.targetMonthly}/mo with $${paymentAssumptions.down} down`);
-    setSheetOpen(true);
-  }
-  
-  // Clear budget filter
-  function clearBudgetFilter() {
-    setBudgetFilterEnabled(false);
-    // Restore to base filtered cars
-    const baseList = baseFilteredCars.length > 0 ? baseFilteredCars : (inventory ?? []);
-    setSheetResults({ results: baseList, filters: currentFilters });
-    setSheetTitle(`Found ${baseList.length} vehicles`);
-    setSheetSubtitle(generateSubtitle(currentFilters));
-  }
-
-      const handleTranscription = useCallback((text: string) => {
-    console.log("[Home] Transcription received:", text);
-
-        // Check for budget intent first
+    // Check for budget intent
     const budget = parseBudgetIntent(text);
+
+    // Extract filters from transcript
+    const extractedFilters = extractFilters(text) ?? {};
+    const normalized = normalizeFilters(extractedFilters);
+    setVoiceFilters(normalized);
+
     if (budget) {
-      // Apply existing filter extraction for other criteria (SUV, AWD, etc.)
-      const filters = extractFilters(text) ?? {};
-      const normalized = normalizeFilters(filters);
-      setCurrentFilters(normalized);
-
-      const safeInventory = Array.isArray(inventory) ? inventory : [];
-      const intermediateResult = filterInventory(safeInventory, normalized);
-      const filteredCars = intermediateResult.results || [];
-
+      // Budget-based filtering
       const down = budget.down ?? 0;
       const targetMonthly = budget.targetMonthly ?? 0;
       const apr = budget.apr ?? DEFAULT_APR;
       const terms = budget.termMonths ? [budget.termMonths] : DEFAULT_TERMS;
 
-      const matches: Record<string, {payment: number; termMonths: number}> = {};
-      const resultCars = [];
+      const matches: Record<string, { payment: number; termMonths: number }> = {};
+      const safeInventory = Array.isArray(inventory) ? inventory : [];
+      const filtered = filterInventory(safeInventory, normalized);
 
-      for (const car of filteredCars) {
+      for (const car of filtered.results) {
         const fit = chooseTermForBudget({
           price: car.price,
           down,
@@ -164,215 +98,381 @@ export default function Home() {
           fees: DEFAULT_FEES,
           targetMonthly,
           tolerance: DEFAULT_TOLERANCE,
-          terms
+          terms,
         });
 
         if (fit) {
           matches[car.id] = fit;
-          resultCars.push(car);
         }
       }
 
       setBudgetMatches(matches);
-      setBudgetSummary(`Showing ${resultCars.length} matches for ~$${targetMonthly}/mo with $${down} down (${apr}% APR).`);
-      
-      const budgetResult = {
-        results: resultCars,
-        filters: normalized
-      };
-      setSheetResults(budgetResult);
-      setSheetTitle(`Found ${resultCars.length} vehicles`);
-      setSheetSubtitle(generateSubtitle(normalized));
-      setSheetOpen(true);
-      return;
-    }
-    
-    // Extract filters from transcript
-    const filters = extractFilters(text) ?? {};
-        const normalized = normalizeFilters(filters);
-    setCurrentFilters(normalized);
-    console.log("[Home] Extracted filters:", filters);
-    
-    // Filter inventory
-        const safeInventory = Array.isArray(inventory) ? inventory : [];
-    const result = filterInventory(safeInventory, normalized);    console.log("[Home] Filter result:", result);
-    
-    // Generate title and subtitle
-    const title = result.results.length === 0 
-      ? "No matches found"
-      : `Found ${result.results.length} ${result.results.length === 1 ? 'vehicle' : 'vehicles'}`;
-    
-    const subtitle = Object.keys(normalized).length === 0
-      ? "Try adding filters like price, make, or features"
-      : generateSubtitle(normalized);
-    
-    // Update bottom sheet
-    setSheetTitle(title);
-    setSheetSubtitle(subtitle);
-    setSheetResults(result);
-        setBaseFilteredCars(result.results);
-    setSheetOpen(true);
-    
-    // Set system message banner
-    if (result.results.length === 0) {
-      setSystemMessage(result.reasoning || "No vehicles match your criteria");
+
+      toast({
+        title: `Found ${Object.keys(matches).length} vehicles`,
+        description: `Around $${targetMonthly}/mo with $${down} down`,
+      });
     } else {
-      setSystemMessage(result.reasoning || null);
+      setBudgetMatches({});
+      toast({
+        title: "Search updated",
+        description: text,
+      });
     }
+  }, [inventory, toast]);
+
+  // Voice search hook
+  const {
+    isListening,
+    isSupported,
+    transcript,
+    error: voiceError,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useVoiceSearch(handleVoiceTranscript);
+
+  // Apply filters to inventory
+  const filteredVehicles = useMemo(() => {
+    const safeInventory = Array.isArray(inventory) ? inventory : [];
+
+    // Combine panel filters with voice filters
+    const combinedFilters: Filters = {
+      ...voiceFilters,
+      maxPrice: filters.maxPrice || voiceFilters.maxPrice,
+      minPrice: filters.minPrice || voiceFilters.minPrice,
+      make: filters.make?.length ? filters.make : voiceFilters.make,
+      minYear: filters.minYear || voiceFilters.minYear,
+      maxYear: filters.maxYear || voiceFilters.maxYear,
+      bodyStyle: filters.bodyStyle?.length ? filters.bodyStyle : voiceFilters.bodyStyle,
+      drivetrain: filters.drivetrain?.length ? filters.drivetrain : voiceFilters.drivetrain,
+      fuel: filters.fuel?.length ? filters.fuel : voiceFilters.fuel,
+      color: filters.color?.length ? filters.color : voiceFilters.color,
+    };
+
+    // Filter by client-side filters that aren't handled by API
+    let result = safeInventory;
+
+    // Apply body style filter
+    if (combinedFilters.bodyStyle?.length) {
+      result = result.filter((car) =>
+        combinedFilters.bodyStyle!.some(
+          (style) => car.body_style?.toLowerCase() === style.toLowerCase()
+        )
+      );
+    }
+
+    // Apply drivetrain filter
+    if (combinedFilters.drivetrain?.length) {
+      result = result.filter((car) =>
+        combinedFilters.drivetrain!.some(
+          (dt) => car.drivetrain?.toLowerCase() === dt.toLowerCase()
+        )
+      );
+    }
+
+    // Apply transmission filter
+    if (filters.transmission?.length) {
+      result = result.filter((car) =>
+        filters.transmission!.some(
+          (trans) => car.transmission?.toLowerCase() === trans.toLowerCase()
+        )
+      );
+    }
+
+    // Apply mileage filter
+    if (filters.maxMiles) {
+      result = result.filter((car) => car.mileage <= filters.maxMiles!);
+    }
+
+    // If budget matching is active, filter to only matching cars
+    if (Object.keys(budgetMatches).length > 0) {
+      result = result.filter((car) => car.id in budgetMatches);
+    }
+
+    // Apply sort
+    if (filters.sort) {
+      result = [...result].sort((a, b) => {
+        switch (filters.sort) {
+          case "price_asc":
+            return a.price - b.price;
+          case "price_desc":
+            return b.price - a.price;
+          case "year_desc":
+            return b.year - a.year;
+          case "mileage_asc":
+            return a.mileage - b.mileage;
+          default:
+            return 0;
+        }
+      });
+    }
+
+    return result;
+  }, [inventory, filters, voiceFilters, budgetMatches]);
+
+  // Calculate payments for all vehicles
+  const vehiclePayments = useMemo(() => {
+    if (!calculatorEnabled) return {};
+
+    const payments: Record<string, number> = {};
+    for (const vehicle of filteredVehicles) {
+      const { monthlyPayment } = calcMonthlyPayment({
+        price: vehicle.price,
+        down: calculatorValues.down,
+        apr: calculatorValues.apr,
+        termMonths: calculatorValues.termMonths,
+        taxRate: calculatorValues.taxRate,
+        fees: calculatorValues.fees,
+      });
+      payments[vehicle.id] = monthlyPayment;
+    }
+    return payments;
+  }, [filteredVehicles, calculatorEnabled, calculatorValues]);
+
+  // Get unique makes from inventory for filter options
+  const availableMakes = useMemo(() => {
+    const makes = new Set<string>();
+    for (const car of inventory) {
+      if (car.make) makes.add(car.make);
+    }
+    return Array.from(makes).sort();
   }, [inventory]);
 
-  const handleTestPhrase = (phrase: string) => {
-    handleTranscription(phrase);
+  // Clear all filters
+  const handleClearFilters = () => {
+    setFilters({});
+    setVoiceFilters({});
+    setBudgetMatches({});
+    setSearchQuery("");
+    resetTranscript();
+  };
+
+  // Handle search form submit
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      handleVoiceTranscript(searchQuery.trim());
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CarIcon className="h-6 w-6" />
-            <h1 className="text-xl font-bold">AutoVoice AI</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button              variant="ghost"
-              size="icon"
-              onClick={() => setIsMuted(!isMuted)}
-            >
-              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </Button>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
-
-            {/* Payment Calculator Panel */}
-      <div className="container mx-auto px-4 py-6">
-        <PaymentCalculatorPanel
-          value={paymentAssumptions}
-          onChange={setPaymentAssumptions}
-          onApplyFilter={applyBudgetFilter}
-          onClearFilter={clearBudgetFilter}
-        />
-      </div>
-
-      {systemMessage && (
-        <div className="bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <p className="text-sm text-blue-900 dark:text-blue-100">{systemMessage}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSystemMessage(null)}
-            >
-              Dismiss
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <Card className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Voice-Driven Car Search</h2>
-            <p className="text-muted-foreground mb-6">
-              Use your voice to search our inventory. Try saying things like "Show me AWD SUVs under 40k" or "Find a Honda under 30K"
-            </p>
-            <VoiceInterface
-              onTranscription={handleTranscription}
-              isSpeaking={isSpeaking}              isMuted={isMuted}
-            />
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="font-semibold mb-3">Quick Test Phrases</h3>
-            <div className="flex flex-wrap gap-2">
-              {TEST_PHRASES.map((phrase, i) => (
-                <Button
-                  key={i}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleTestPhrase(phrase)}
-                >
-                  {phrase}
-                </Button>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Debug Panel</h3>
+    <div className="min-h-full">
+      {/* Search Header */}
+      <div className="sticky top-16 z-40 bg-background border-b">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search Bar Row */}
+            <div className="flex items-center gap-3">
+              {/* Mobile Filter Toggle */}
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDebugOpen(!debugOpen)}
+                variant="outline"
+                size="icon"
+                className="lg:hidden shrink-0"
+                onClick={() => setShowFilters(!showFilters)}
               >
-                {debugOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <Filter className="h-4 w-4" />
+              </Button>
+
+              {/* Search Input */}
+              <form onSubmit={handleSearchSubmit} className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search by make, model, or features..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-10"
+                />
+                {searchQuery && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </form>
+
+              {/* Voice Search Button */}
+              <Button
+                variant={isListening ? "destructive" : "outline"}
+                size="icon"
+                className="shrink-0 relative"
+                onClick={isListening ? stopListening : startListening}
+                disabled={!isSupported}
+              >
+                {isListening && (
+                  <span className="absolute inset-0 rounded-md animate-ping bg-destructive/40" />
+                )}
+                <svg
+                  className={cn("h-4 w-4", isListening && "animate-pulse")}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
+                </svg>
               </Button>
             </div>
-            {debugOpen && (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Current Filters:</h4>
-                  <pre className="text-xs bg-muted p-3 rounded overflow-auto">
-                    {JSON.stringify(currentFilters, null, 2)}                  </pre>
-                </div>
-                {sheetResults && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Filter Results:</h4>
-                    <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-60">
-                      {JSON.stringify(sheetResults, null, 2)}
-                    </pre>
-                  </div>
-                )}
+
+            {/* Voice status */}
+            {(isListening || transcript) && (
+              <div className="text-sm text-center">
+                {isListening ? (
+                  <span className="text-destructive animate-pulse">Listening...</span>
+                ) : transcript ? (
+                  <span className="text-muted-foreground">"{transcript}"</span>
+                ) : null}
               </div>
             )}
-          </Card>
-        </div>
-      </main>
 
-      <ResultsBottomSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        title={sheetTitle}
-        subtitle={sheetSubtitle}
-        results={sheetResults}
-                carPayments={carPayments}
-        paymentTermMonths={paymentAssumptions.termMonths}
-        paymentApr={paymentAssumptions.apr}
-        paymentDown={paymentAssumptions.down}
-                budgetMatches={budgetMatches}
-        budgetSummary={budgetSummary}
-      />
+            {/* Payment Calculator */}
+            <PaymentCalculator
+              values={calculatorValues}
+              onChange={setCalculatorValues}
+              enabled={calculatorEnabled}
+              onEnabledChange={setCalculatorEnabled}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex gap-6">
+          {/* Filters Sidebar */}
+          <aside
+            className={cn(
+              "w-72 shrink-0 transition-all duration-300",
+              "hidden lg:block",
+              showFilters && "fixed inset-0 z-50 block bg-background p-4 lg:relative lg:p-0"
+            )}
+          >
+            {/* Mobile Close Button */}
+            {showFilters && (
+              <div className="flex justify-end mb-4 lg:hidden">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowFilters(false)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
+
+            <div className="sticky top-36 max-h-[calc(100vh-10rem)] overflow-y-auto pr-2">
+              <FiltersPanel
+                filters={filters}
+                onChange={setFilters}
+                onClear={handleClearFilters}
+                availableMakes={availableMakes}
+              />
+            </div>
+          </aside>
+
+          {/* Mobile Overlay */}
+          {showFilters && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setShowFilters(false)}
+            />
+          )}
+
+          {/* Results Grid */}
+          <main className="flex-1 min-w-0">
+            {/* Results Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-xl font-semibold">
+                  {isLoading ? (
+                    "Loading..."
+                  ) : (
+                    <>
+                      {filteredVehicles.length} Vehicle
+                      {filteredVehicles.length !== 1 ? "s" : ""} Found
+                    </>
+                  )}
+                </h1>
+                {Object.keys(budgetMatches).length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Filtered by budget match
+                  </p>
+                )}
+              </div>
+
+              {/* Active filters summary */}
+              {(Object.keys(filters).length > 0 || Object.keys(voiceFilters).length > 0) && (
+                <Button variant="ghost" size="sm" onClick={handleClearFilters}>
+                  Clear all filters
+                </Button>
+              )}
+            </div>
+
+            {/* Loading State */}
+            {isLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <VehicleCardSkeleton key={i} />
+                ))}
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+              <div className="text-center py-12">
+                <p className="text-destructive mb-4">Failed to load inventory</p>
+                <Button onClick={() => refetch()}>Try Again</Button>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && !error && filteredVehicles.length === 0 && (
+              <div className="text-center py-12">
+                <CarIcon className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No vehicles found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Try adjusting your filters or search query
+                </p>
+                <Button variant="outline" onClick={handleClearFilters}>
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+
+            {/* Results Grid */}
+            {!isLoading && !error && filteredVehicles.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredVehicles.map((vehicle) => (
+                  <VehicleCard
+                    key={vehicle.id}
+                    vehicle={vehicle}
+                    estimatedPayment={
+                      calculatorEnabled
+                        ? vehiclePayments[vehicle.id]
+                        : budgetMatches[vehicle.id]?.payment
+                    }
+                    paymentTerm={
+                      calculatorEnabled
+                        ? calculatorValues.termMonths
+                        : budgetMatches[vehicle.id]?.termMonths
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </main>
+        </div>
+      </div>
     </div>
   );
-}
-
-import type { NormalizedFilters } from "@/lib/normalizeFilters";
-
-function generateSubtitle(filters: NormalizedFilters): string {
-  if (!filters) return "All vehicles";
-  const parts: string[] = [];
-
-  if (filters.make?.length) parts.push(filters.make.join("/"));
-  if (filters.minYear) parts.push(`${filters.minYear}+`);
-  if (filters.maxPrice) parts.push(`Under $${(filters.maxPrice / 1000).toFixed(0)}k`);
-  if (filters.drivetrain?.length) parts.push(filters.drivetrain.map(d => d.toUpperCase()).join("/"));
-  if (filters.bodyStyle?.length) parts.push(filters.bodyStyle.join("/"));
-  if (filters.fuel?.length) parts.push(filters.fuel.join("/"));
-
-  if (filters.features?.length) {
-    const featureLabels = filters.features.map(f => {
-      if (f === "carplay") return "CarPlay";
-      if (f === "heated_seats") return "Heated Seats";
-      if (f === "sunroof") return "Sunroof";
-      if (f === "backup_camera") return "Backup Camera";
-      if (f === "leather") return "Leather";
-      if (f === "third_row") return "3rd Row";
-      return f;
-    });
-    parts.push(featureLabels.join(", "));
-  }
-
-  return parts.length > 0 ? parts.join(" • ") : "All vehicles";
 }
