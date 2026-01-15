@@ -244,18 +244,25 @@ export default function RehashOptimizerPage() {
 
   // Deal input state - initialized once when vehicle loads
   const [dealInput, setDealInput] = useState<DealInput>(createDefaultDealInput);
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Track which vehicleId was used to initialize the form
+  const [initializedForVehicleId, setInitializedForVehicleId] = useState<string | null>(null);
 
-  // Initialize deal input from vehicle data (only once)
+  // Reset and initialize deal input when vehicle changes
   useEffect(() => {
-    if (vehicle && !isInitialized) {
+    // If we have a new vehicleId that differs from what we initialized for
+    if (vehicleId && vehicleId !== initializedForVehicleId && vehicle) {
       setDealInput(createDealInputFromVehicle(vehicle));
-      setIsInitialized(true);
-    } else if (!vehicleId && !isInitialized) {
-      // No vehicle ID provided, use defaults
-      setIsInitialized(true);
+      setInitializedForVehicleId(vehicleId);
+      setResults(null); // Clear previous results
+      setSelectedDeal(null);
+    } else if (!vehicleId && initializedForVehicleId !== "") {
+      // No vehicleId provided, reset to defaults
+      setDealInput(createDefaultDealInput());
+      setInitializedForVehicleId("");
+      setResults(null);
+      setSelectedDeal(null);
     }
-  }, [vehicle, vehicleId, isInitialized]);
+  }, [vehicle, vehicleId, initializedForVehicleId]);
 
   const [results, setResults] = useState<{
     bestDeal: DealCandidate | null;
@@ -278,12 +285,14 @@ export default function RehashOptimizerPage() {
     }, 100);
   }, [dealInput]);
 
-  // Auto-run when initialized
+  // Auto-run when vehicle is loaded/changed
   useEffect(() => {
-    if (isInitialized && !results) {
+    // Run calculation when we have initialized for a vehicle (or for no vehicle) and don't have results yet
+    const isInitialized = initializedForVehicleId !== null;
+    if (isInitialized && !results && !isCalculating) {
       handleFindLenders();
     }
-  }, [isInitialized, results, handleFindLenders]);
+  }, [initializedForVehicleId, results, isCalculating, handleFindLenders]);
 
   const handleInputChange = (field: keyof DealInput, value: DealInput[keyof DealInput]) => {
     setDealInput((prev) => ({ ...prev, [field]: value }));
