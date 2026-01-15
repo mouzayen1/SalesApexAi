@@ -1,5 +1,5 @@
 // client/src/pages/rehash-optimizer.tsx
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -16,6 +16,10 @@ import {
   AlertCircle,
   ArrowLeft,
   Loader2,
+  Lightbulb,
+  ShieldAlert,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +31,15 @@ import type { DealInput, DealCandidate } from "../../../shared/deals";
 import type { Car as CarType } from "@shared/schema";
 import { fetchCarById } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import {
+  computeBadges,
+  computeAiInsight,
+  computeSmartDecision,
+  CREDIT_TIER_LABELS,
+  type VehicleBadge,
+  type AiInsight,
+  type SmartDecision,
+} from "../../../shared/deal-insights";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -45,9 +58,10 @@ interface DealCardProps {
   isBest?: boolean;
   isSelected?: boolean;
   onSelect?: () => void;
+  smartDecision?: SmartDecision;
 }
 
-function DealCard({ deal, isBest, isSelected, onSelect }: DealCardProps) {
+function DealCard({ deal, isBest, isSelected, onSelect, smartDecision }: DealCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -71,6 +85,21 @@ function DealCard({ deal, isBest, isSelected, onSelect }: DealCardProps) {
             {isBest && (
               <Badge className="bg-green-500 text-white">Best Deal</Badge>
             )}
+            {/* Product Chips for Best Deal */}
+            {isBest && smartDecision && smartDecision.products.length > 0 && (
+              <>
+                {smartDecision.products.map((product, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="outline"
+                    className="text-xs bg-blue-50 border-blue-500 text-blue-700"
+                    title={product.reason}
+                  >
+                    +{product.name}
+                  </Badge>
+                ))}
+              </>
+            )}
             {deal.withinGuidelines ? (
               <Badge variant="outline" className="text-green-600 border-green-600">
                 <CheckCircle className="h-3 w-3 mr-1" />
@@ -84,6 +113,16 @@ function DealCard({ deal, isBest, isSelected, onSelect }: DealCardProps) {
             )}
           </div>
         </div>
+
+        {/* Smart Decision Narrative for Best Deal */}
+        {isBest && smartDecision && smartDecision.narrative && (
+          <div className="mb-3 p-2 rounded bg-blue-50/50 border border-blue-100">
+            <p className="text-xs">
+              <span className="font-medium text-blue-700">Smart Decision:</span>{" "}
+              <span className="text-muted-foreground">{smartDecision.narrative}</span>
+            </p>
+          </div>
+        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
@@ -195,6 +234,7 @@ function createDealInputFromVehicle(vehicle: CarType): DealInput {
     vehicleMileage: vehicle.mileage,
     vehiclePrice: vehicle.price,
     vehicleCost: estimatedCost,
+    vehicleMake: vehicle.make,
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -204,6 +244,7 @@ function createDealInputFromVehicle(vehicle: CarType): DealInput {
     customerCreditTier: "subprime",
     targetPayment: 450,
     paymentTolerance: 50,
+    monthlyGrossIncome: undefined,
   };
 }
 
@@ -215,6 +256,7 @@ function createDefaultDealInput(): DealInput {
     vehicleMileage: 50000,
     vehiclePrice: 25000,
     vehicleCost: 21000,
+    vehicleMake: undefined,
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
@@ -224,6 +266,7 @@ function createDefaultDealInput(): DealInput {
     customerCreditTier: "subprime",
     targetPayment: 450,
     paymentTolerance: 50,
+    monthlyGrossIncome: undefined,
   };
 }
 
@@ -305,6 +348,28 @@ export default function RehashOptimizerPage() {
   const handleInputChange = (field: keyof DealInput, value: DealInput[keyof DealInput]) => {
     setDealInput((prev) => ({ ...prev, [field]: value }));
   };
+
+  // Computed derived state - badges, AI insight, smart decision
+  const badges = useMemo<VehicleBadge[]>(() => {
+    return computeBadges(
+      dealInput,
+      results?.bestDeal || null,
+      vehicle?.make,
+      vehicle?.model
+    );
+  }, [dealInput, results?.bestDeal, vehicle?.make, vehicle?.model]);
+
+  const aiInsight = useMemo<AiInsight>(() => {
+    return computeAiInsight(
+      dealInput,
+      results?.bestDeal || null,
+      results?.allCandidates || []
+    );
+  }, [dealInput, results?.bestDeal, results?.allCandidates]);
+
+  const smartDecision = useMemo<SmartDecision>(() => {
+    return computeSmartDecision(dealInput, results?.bestDeal || null);
+  }, [dealInput, results?.bestDeal]);
 
   // Loading state
   if (vehicleId && isLoadingVehicle) {
@@ -438,12 +503,11 @@ export default function RehashOptimizerPage() {
                     <select
                       value={dealInput.customerCreditTier}
                       onChange={(e) => handleInputChange("customerCreditTier", e.target.value)}
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     >
-                      <option value="prime">Prime (700+)</option>
-                      <option value="near_prime">Near Prime (650-699)</option>
-                      <option value="subprime">Subprime (550-649)</option>
-                      <option value="deep_subprime">Deep Subprime (&lt;550)</option>
+                      {Object.entries(CREDIT_TIER_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -483,6 +547,16 @@ export default function RehashOptimizerPage() {
                         onChange={(e) => handleInputChange("tradePayoff", Number(e.target.value))}
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Monthly Gross Income (PTI)</Label>
+                    <Input
+                      type="number"
+                      placeholder="Optional"
+                      value={dealInput.monthlyGrossIncome || ""}
+                      onChange={(e) => handleInputChange("monthlyGrossIncome", e.target.value ? Number(e.target.value) : undefined)}
+                    />
                   </div>
                 </div>
 
@@ -567,6 +641,30 @@ export default function RehashOptimizerPage() {
                   <p className="text-muted-foreground">
                     {formatCurrency(vehicle.price)} • {formatMileage(vehicle.mileage)} miles • {vehicle.color}
                   </p>
+
+                  {/* Vehicle Badges/Warnings */}
+                  {badges.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {badges.map((badge, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="outline"
+                          className={cn(
+                            "text-xs font-medium",
+                            badge.type === 'danger' && "border-red-500 text-red-600 bg-red-50",
+                            badge.type === 'warning' && "border-amber-500 text-amber-600 bg-amber-50",
+                            badge.type === 'info' && "border-blue-500 text-blue-600 bg-blue-50"
+                          )}
+                          title={badge.detail}
+                        >
+                          {badge.type === 'danger' && <ShieldAlert className="h-3 w-3 mr-1" />}
+                          {badge.type === 'warning' && <AlertCircle className="h-3 w-3 mr-1" />}
+                          {badge.type === 'info' && <Info className="h-3 w-3 mr-1" />}
+                          {badge.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -610,6 +708,59 @@ export default function RehashOptimizerPage() {
             {/* Results List */}
             {results && results.allCandidates.length > 0 && !isCalculating && (
               <div className="space-y-4">
+                {/* AI Insight Panel */}
+                <Card className={cn(
+                  "p-4 border-l-4",
+                  aiInsight.status === 'realistic' && "border-l-green-500 bg-green-50/50",
+                  aiInsight.status === 'needs_adjustment' && "border-l-amber-500 bg-amber-50/50",
+                  aiInsight.status === 'challenging' && "border-l-red-500 bg-red-50/50"
+                )}>
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "p-2 rounded-full",
+                      aiInsight.status === 'realistic' && "bg-green-100",
+                      aiInsight.status === 'needs_adjustment' && "bg-amber-100",
+                      aiInsight.status === 'challenging' && "bg-red-100"
+                    )}>
+                      <Lightbulb className={cn(
+                        "h-5 w-5",
+                        aiInsight.status === 'realistic' && "text-green-600",
+                        aiInsight.status === 'needs_adjustment' && "text-amber-600",
+                        aiInsight.status === 'challenging' && "text-red-600"
+                      )} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary" className="text-xs font-medium">AI Insight</Badge>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs font-medium",
+                            aiInsight.status === 'realistic' && "border-green-500 text-green-700",
+                            aiInsight.status === 'needs_adjustment' && "border-amber-500 text-amber-700",
+                            aiInsight.status === 'challenging' && "border-red-500 text-red-700"
+                          )}
+                        >
+                          {aiInsight.statusLabel}
+                        </Badge>
+                        {aiInsight.gap > 0 && (
+                          <span className="text-sm text-muted-foreground">
+                            Gap: {formatCurrency(aiInsight.gap)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        {aiInsight.explanations.map((exp, idx) => (
+                          <p key={idx} className="text-sm text-muted-foreground">{exp}</p>
+                        ))}
+                      </div>
+                      <p className="text-sm font-medium mt-2">
+                        <span className="text-muted-foreground">Strategy:</span> {aiInsight.strategy}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
                 {/* Summary */}
                 <Card className="p-4 bg-muted/30">
                   <div className="flex flex-wrap gap-4 justify-between items-center">
@@ -645,6 +796,7 @@ export default function RehashOptimizerPage() {
                       isBest={index === 0}
                       isSelected={selectedDeal === deal}
                       onSelect={() => setSelectedDeal(deal)}
+                      smartDecision={index === 0 ? smartDecision : undefined}
                     />
                   ))}
                 </div>

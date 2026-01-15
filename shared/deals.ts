@@ -13,6 +13,7 @@ export interface DealInput {
   vehicleMileage: number;
   vehiclePrice: number;      // Selling price (before tax/fees)
   vehicleCost: number;        // Dealer cost (for profit calculation)
+  vehicleMake?: string;       // Make for theft risk calculation
   taxRate: number;            // e.g., 0.09 for 9%
   fees: number;               // Doc + DMV + misc dealer fees
   downPayment: number;        // Customer cash down
@@ -23,6 +24,7 @@ export interface DealInput {
   targetPayment: number;      // Customer's desired monthly payment
   paymentTolerance: number;   // e.g., 50 means ±$50
   preferredTermMonths?: number;
+  monthlyGrossIncome?: number; // Customer's monthly gross income for PTI calculation
 }
 
 export interface DealCandidate {
