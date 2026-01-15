@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
-import { Car as CarIcon, Fuel, Gauge, Settings2, MapPin } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Car as CarIcon, Fuel, Gauge, Settings2, MapPin, Calculator } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { Car } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,14 @@ function formatMileage(mileage: number): string {
 }
 
 export function VehicleCard({ vehicle, estimatedPayment, paymentTerm }: VehicleCardProps) {
+  const navigate = useNavigate();
+
+  const handleOptimizeDeal = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/rehash-optimizer?vehicleId=${encodeURIComponent(vehicle.id)}`);
+  };
+
   return (
     <Link
       to={`/vehicles/${vehicle.id}`}
@@ -100,7 +109,7 @@ export function VehicleCard({ vehicle, estimatedPayment, paymentTerm }: VehicleC
           </div>
 
           {/* Tags */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {vehicle.body_style && (
               <Badge variant="outline" className="text-xs">
                 {vehicle.body_style}
@@ -117,6 +126,17 @@ export function VehicleCard({ vehicle, estimatedPayment, paymentTerm }: VehicleC
               </Badge>
             )}
           </div>
+
+          {/* Optimize Deal Button */}
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full"
+            onClick={handleOptimizeDeal}
+          >
+            <Calculator className="h-4 w-4 mr-2" />
+            Optimize Deal
+          </Button>
         </div>
       </div>
     </Link>

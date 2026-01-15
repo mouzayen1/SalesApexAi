@@ -1,6 +1,7 @@
 // client/src/pages/rehash-optimizer.tsx
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Calculator,
   DollarSign,
@@ -12,6 +13,9 @@ import {
   Award,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
+  ArrowLeft,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,16 +24,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { runRehash } from "../../../shared/rehash";
 import type { DealInput, DealCandidate } from "../../../shared/deals";
+import type { Car as CarType } from "@shared/schema";
+import { fetchCarById } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-// US States for dropdown
-const US_STATES = [
-  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
-];
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -37,6 +34,10 @@ function formatCurrency(value: number): string {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatMileage(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
 }
 
 interface DealCardProps {
@@ -183,29 +184,78 @@ function DealCard({ deal, isBest, isSelected, onSelect }: DealCardProps) {
   );
 }
 
+// Helper to create initial deal input from vehicle
+function createDealInputFromVehicle(vehicle: CarType): DealInput {
+  // Estimate vehicle cost as ~85% of price (typical dealer markup)
+  const estimatedCost = Math.round(vehicle.price * 0.85);
+
+  return {
+    vehicleId: vehicle.id,
+    vehicleYear: vehicle.year,
+    vehicleMileage: vehicle.mileage,
+    vehiclePrice: vehicle.price,
+    vehicleCost: estimatedCost,
+    taxRate: 0.09,
+    fees: 799,
+    downPayment: 3000,
+    tradeAllowance: 0,
+    tradePayoff: 0,
+    backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
+    customerCreditTier: "subprime",
+    targetPayment: 450,
+    paymentTolerance: 50,
+  };
+}
+
+// Default deal input when no vehicle is selected
+function createDefaultDealInput(): DealInput {
+  return {
+    vehicleId: "",
+    vehicleYear: new Date().getFullYear() - 3,
+    vehicleMileage: 50000,
+    vehiclePrice: 25000,
+    vehicleCost: 21000,
+    taxRate: 0.09,
+    fees: 799,
+    downPayment: 3000,
+    tradeAllowance: 0,
+    tradePayoff: 0,
+    backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
+    customerCreditTier: "subprime",
+    targetPayment: 450,
+    paymentTolerance: 50,
+  };
+}
+
 export default function RehashOptimizerPage() {
   const [searchParams] = useSearchParams();
+  const vehicleId = searchParams.get("vehicleId");
 
-  // Initialize deal input with URL params or defaults
-  const [dealInput, setDealInput] = useState<DealInput>(() => {
-    const price = searchParams.get("price");
-    return {
-      vehicleId: searchParams.get("vehicleId") || "demo-1",
-      vehicleYear: Number(searchParams.get("year")) || 2020,
-      vehicleMileage: Number(searchParams.get("mileage")) || 50000,
-      vehiclePrice: price ? Number(price) : 21995,
-      vehicleCost: 18500,
-      taxRate: 0.09,
-      fees: 799,
-      downPayment: 3000,
-      tradeAllowance: 0,
-      tradePayoff: 0,
-      backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
-      customerCreditTier: "subprime",
-      targetPayment: 450,
-      paymentTolerance: 50,
-    };
+  // Fetch vehicle data if vehicleId is provided
+  const {
+    data: vehicle,
+    isLoading: isLoadingVehicle,
+    error: vehicleError,
+  } = useQuery({
+    queryKey: ["car", vehicleId],
+    queryFn: () => (vehicleId ? fetchCarById(vehicleId) : null),
+    enabled: !!vehicleId,
   });
+
+  // Deal input state - initialized once when vehicle loads
+  const [dealInput, setDealInput] = useState<DealInput>(createDefaultDealInput);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize deal input from vehicle data (only once)
+  useEffect(() => {
+    if (vehicle && !isInitialized) {
+      setDealInput(createDealInputFromVehicle(vehicle));
+      setIsInitialized(true);
+    } else if (!vehicleId && !isInitialized) {
+      // No vehicle ID provided, use defaults
+      setIsInitialized(true);
+    }
+  }, [vehicle, vehicleId, isInitialized]);
 
   const [results, setResults] = useState<{
     bestDeal: DealCandidate | null;
@@ -215,7 +265,7 @@ export default function RehashOptimizerPage() {
   const [selectedDeal, setSelectedDeal] = useState<DealCandidate | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const handleFindLenders = () => {
+  const handleFindLenders = useCallback(() => {
     setIsCalculating(true);
     // Small timeout for UI feedback
     setTimeout(() => {
@@ -226,16 +276,78 @@ export default function RehashOptimizerPage() {
       }
       setIsCalculating(false);
     }, 100);
-  };
+  }, [dealInput]);
 
-  // Auto-run on mount
+  // Auto-run when initialized
   useEffect(() => {
-    handleFindLenders();
-  }, []);
+    if (isInitialized && !results) {
+      handleFindLenders();
+    }
+  }, [isInitialized, results, handleFindLenders]);
 
-  const handleInputChange = (field: keyof DealInput, value: any) => {
+  const handleInputChange = (field: keyof DealInput, value: DealInput[keyof DealInput]) => {
     setDealInput((prev) => ({ ...prev, [field]: value }));
   };
+
+  // Loading state
+  if (vehicleId && isLoadingVehicle) {
+    return (
+      <div className="min-h-full py-6">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <Card className="p-8 text-center max-w-md mx-auto">
+            <Loader2 className="h-12 w-12 mx-auto text-primary mb-4 animate-spin" />
+            <p className="text-muted-foreground">Loading vehicle details...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Vehicle not found state
+  if (vehicleId && !isLoadingVehicle && !vehicle) {
+    return (
+      <div className="min-h-full py-6">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <Card className="p-8 text-center max-w-md mx-auto border-destructive bg-destructive/5">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Vehicle Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              The vehicle you're looking for doesn't exist or has been removed.
+            </p>
+            <Link to="/">
+              <Button variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Inventory
+              </Button>
+            </Link>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (vehicleError) {
+    return (
+      <div className="min-h-full py-6">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <Card className="p-8 text-center max-w-md mx-auto border-destructive bg-destructive/5">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Error Loading Vehicle</h2>
+            <p className="text-muted-foreground mb-4">
+              There was a problem loading the vehicle data.
+            </p>
+            <Link to="/">
+              <Button variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Inventory
+              </Button>
+            </Link>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full py-6">
@@ -405,7 +517,7 @@ export default function RehashOptimizerPage() {
                 >
                   {isCalculating ? (
                     <>
-                      <span className="animate-spin mr-2">⏳</span>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Calculating...
                     </>
                   ) : (
@@ -421,11 +533,32 @@ export default function RehashOptimizerPage() {
 
           {/* Right Panel - Results */}
           <div className="flex-1 min-w-0">
+            {/* Vehicle Header */}
             <div className="mb-6">
-              <h1 className="text-2xl font-bold">Deal Optimizer</h1>
-              <p className="text-muted-foreground">
-                Find the best lender structure to maximize dealer profit
-              </p>
+              {vehicle ? (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Link to="/" className="text-muted-foreground hover:text-foreground">
+                      <ArrowLeft className="h-4 w-4" />
+                    </Link>
+                    <Badge variant="outline">Selected Vehicle</Badge>
+                  </div>
+                  <h1 className="text-2xl font-bold">
+                    {vehicle.year} {vehicle.make} {vehicle.model}
+                    {vehicle.trim && <span className="text-muted-foreground font-normal"> {vehicle.trim}</span>}
+                  </h1>
+                  <p className="text-muted-foreground">
+                    {formatCurrency(vehicle.price)} • {formatMileage(vehicle.mileage)} miles • {vehicle.color}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold">Deal Optimizer</h1>
+                  <p className="text-muted-foreground">
+                    Find the best lender structure to maximize dealer profit
+                  </p>
+                </>
+              )}
             </div>
 
             {/* No Results */}
@@ -441,7 +574,7 @@ export default function RehashOptimizerPage() {
             {/* Loading */}
             {isCalculating && (
               <Card className="p-8 text-center">
-                <div className="animate-spin text-4xl mb-4">⏳</div>
+                <Loader2 className="h-12 w-12 mx-auto text-primary mb-4 animate-spin" />
                 <p className="text-muted-foreground">Calculating optimal structures...</p>
               </Card>
             )}

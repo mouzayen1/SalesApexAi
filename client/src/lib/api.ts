@@ -24,3 +24,14 @@ export async function fetchCars(params: CarsSearchParams = {}): Promise<Car[]> {
   const data = await res.json();
   return data; // API returns Car[] directly
 }
+
+export async function fetchCarById(id: string): Promise<Car | null> {
+  const res = await fetch(`/api/cars/${encodeURIComponent(id)}`);
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(`Failed to fetch car: ${res.status}`);
+  }
+  return res.json();
+}
