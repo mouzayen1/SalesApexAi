@@ -134,7 +134,6 @@ export function VehicleDetailPage() {
           </button>
         </div>
       </div>
-    </div>
       </>  
   );
 }
