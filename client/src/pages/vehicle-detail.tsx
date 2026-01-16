@@ -131,5 +131,5 @@ export function VehicleDetailPage() {
         </div>
       </div>
     </div>
-  );
+    );
 }
