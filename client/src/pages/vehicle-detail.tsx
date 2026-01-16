@@ -44,7 +44,7 @@ export function VehicleDetailPage() {
 
   
       const handleRehashClick = () => {
-      nst dealInput = {
+      const dealInput = {
       vehicleId: String(car.id),
       vehicleYear: car.year,
       vehicleMileage: car.mileage ?? 0,
