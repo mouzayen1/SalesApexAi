@@ -67,6 +67,7 @@ export function VehicleDetailPage() {
   };
 
   return (
+        <>
 
       <Link to="/" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
         <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -134,5 +135,6 @@ export function VehicleDetailPage() {
         </div>
       </div>
     </div>
-    );
+      </>  
+  );
 }
