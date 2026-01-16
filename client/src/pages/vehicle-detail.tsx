@@ -63,8 +63,8 @@ export function VehicleDetailPage() {
       preferredTermMonths: 72,
     };
 
-    navigate('/rehash-optimizer', { state: { dealInput } });
-  };<div className="mx-auto max-w-4xl p-6">
+  return (
+
       <Link to="/" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
         <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
