@@ -44,8 +44,7 @@ export function VehicleDetailPage() {
 
   
       const handleRehashClick = () => {
-      const handleRehashClick = () => {
-    const dealInput = {
+      nst dealInput = {
       vehicleId: String(car.id),
       vehicleYear: car.year,
       vehicleMileage: car.mileage ?? 0,
@@ -62,6 +61,10 @@ export function VehicleDetailPage() {
       paymentTolerance: 50,
       preferredTermMonths: 72,
     };
+            
+    // Navigate to rehash optimizer with deal input
+    navigate('/rehash', { state: { dealInput } });
+  };
 
   return (
 
