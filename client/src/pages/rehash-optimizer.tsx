@@ -106,24 +106,6 @@ export default function RehashOptimizerPage() {
 
   // Track which vehicleId was used to initialize the form
   const initializedForVehicleIdRef = useRef<string | null>(null);
-  const shouldAutoRunRef = useRef(false);
-
-  // Reset and initialize deal input when vehicle changes
-  useEffect(() => {
-    if (vehicleId && vehicleId !== initializedForVehicleIdRef.current && vehicle) {
-      setDealInput(createDealInputFromVehicle(vehicle));
-      initializedForVehicleIdRef.current = vehicleId;
-      setResults(null);
-      setSelectedDeal(null);
-      shouldAutoRunRef.current = true;
-    } else if (!vehicleId && initializedForVehicleIdRef.current !== "") {
-      setDealInput(createDefaultDealInput());
-      initializedForVehicleIdRef.current = "";
-      setResults(null);
-      setSelectedDeal(null);
-      shouldAutoRunRef.current = true;
-    }
-  }, [vehicle, vehicleId]);
 
   // Run calculation function
   const runCalculation = useCallback((input: DealInput) => {
@@ -141,13 +123,27 @@ export default function RehashOptimizerPage() {
     });
   }, [lenderOverrides]);
 
-  // Auto-run calculation after vehicle initialization
+  // Reset and initialize deal input when vehicle changes
+  // Run calculation directly with new input to avoid stale state issues
   useEffect(() => {
-    if (shouldAutoRunRef.current && !isCalculating) {
-      shouldAutoRunRef.current = false;
-      runCalculation(dealInput);
+    if (vehicleId && vehicleId !== initializedForVehicleIdRef.current && vehicle) {
+      const newDealInput = createDealInputFromVehicle(vehicle);
+      setDealInput(newDealInput);
+      initializedForVehicleIdRef.current = vehicleId;
+      setResults(null);
+      setSelectedDeal(null);
+      // Run calculation directly with the new deal input (not stale state)
+      runCalculation(newDealInput);
+    } else if (!vehicleId && initializedForVehicleIdRef.current !== "") {
+      const newDealInput = createDefaultDealInput();
+      setDealInput(newDealInput);
+      initializedForVehicleIdRef.current = "";
+      setResults(null);
+      setSelectedDeal(null);
+      // Run calculation directly with the new deal input
+      runCalculation(newDealInput);
     }
-  }, [dealInput, isCalculating, runCalculation]);
+  }, [vehicle, vehicleId, runCalculation]);
 
   // Manual trigger for "Find Best Lenders" button
   const handleFindLenders = useCallback(() => {
