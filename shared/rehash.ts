@@ -2,6 +2,12 @@
 import type { DealInput, DealCandidate } from './deals';
 import { LENDERS, LenderConfig } from './lenders';
 import {
+  getMergedLenderConfigs,
+  calculateAllowedBackend,
+  type ExtendedLenderConfig,
+  type LenderOverride,
+} from './lender-config';
+import {
   isEligible,
   getPreferenceMultiplier,
   type VehicleInfo,
@@ -13,6 +19,14 @@ export interface RehashResult {
   allCandidates: DealCandidate[];
   // Aggregated rule hits across all evaluated lenders
   allRuleHits: RuleHit[];
+}
+
+export interface RehashOptions {
+  // Optional admin overrides for lender configs
+  lenderOverrides?: LenderOverride[];
+  // Custom GAP/VSC prices (defaults: $900/$1800)
+  gapPrice?: number;
+  vscPrice?: number;
 }
 
 export function calculateMonthlyPayment(
@@ -90,11 +104,21 @@ function estimateNetCheckAndProfit(
   };
 }
 
-export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): RehashResult {
+export function runRehash(
+  deal: DealInput,
+  lenders?: LenderConfig[],
+  options?: RehashOptions
+): RehashResult {
   const candidates: DealCandidate[] = [];
   const allRuleHits: RuleHit[] = [];
 
-  const activeLenders = lenders.filter(l => l.active);
+  // Use merged configs if no custom lenders provided
+  const effectiveLenders = lenders ?? getMergedLenderConfigs(options?.lenderOverrides);
+  const activeLenders = effectiveLenders.filter(l => l.active);
+
+  // Default GAP/VSC prices
+  const gapPrice = options?.gapPrice ?? 900;
+  const vscPrice = options?.vscPrice ?? 1800;
 
   // Build vehicle info for rules engine
   const vehicleInfo: VehicleInfo = {
@@ -134,13 +158,18 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
 
     const terms = lender.allowedTerms;
 
+    // Calculate backend total respecting lender product allowances (admin overrides)
+    const extendedLender = lender as ExtendedLenderConfig;
+    const canIncludeGAP = extendedLender.allowGAP !== false;
+    const canIncludeVSC = extendedLender.allowVSC !== false;
+
     const backendScenarios = [
       { label: 'No backend', value: 0 },
       {
         label: 'GAP + VSC + Other',
         value: Math.min(
-          (deal.backendProducts.gap ? 900 : 0) +
-            (deal.backendProducts.vsc ? 1800 : 0) +
+          (deal.backendProducts.gap && canIncludeGAP ? gapPrice : 0) +
+            (deal.backendProducts.vsc && canIncludeVSC ? vscPrice : 0) +
             deal.backendProducts.otherProductsTotal,
           lender.maxBackendTotal
         ),
