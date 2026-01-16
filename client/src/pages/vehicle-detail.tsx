@@ -44,10 +44,27 @@ export function VehicleDetailPage() {
 
   
       const handleRehashClick = () => {
-    navigate(`/rehash-optimizer?vehiclePrice=${car.price}`);
-  };
-  return (
-    <div className="mx-auto max-w-4xl p-6">
+      const handleRehashClick = () => {
+    const dealInput = {
+      vehicleId: String(car.id),
+      vehicleYear: car.year,
+      vehicleMileage: car.mileage ?? 0,
+      vehiclePrice: car.price,
+      vehicleCost: car.cost ?? car.price * 0.9,
+      taxRate: 0.09,
+      fees: 799,
+      downPayment: 2000,
+      tradeAllowance: 0,
+      tradePayoff: 0,
+      backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
+      customerCreditTier: 'subprime' as const,
+      targetPayment: 550,
+      paymentTolerance: 50,
+      preferredTermMonths: 72,
+    };
+
+    navigate('/rehash-optimizer', { state: { dealInput } });
+  };<div className="mx-auto max-w-4xl p-6">
       <Link to="/" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
         <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

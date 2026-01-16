@@ -1,12 +1,15 @@
 // client/src/pages/rehash-optimizer.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { runRehash } from '../../../shared/rehash';
 import type { DealInput, DealCandidate } from '../../../shared/deals';
 
 export default function RehashOptimizer() {
   const navigate = useNavigate();
-  const [dealInput, setDealInput] = useState<DealInput>({
+  const location = useLocation() as { state?: { dealInput?: any } };
+    const [dealInput, setDealInput] = useState<DealInput>(() => {
+    return location.state?.dealInput ?? {
     vehicleId: 'demo-1',
     vehicleYear: 2020,
     vehicleMileage: 50000,
@@ -21,6 +24,7 @@ export default function RehashOptimizer() {
     customerCreditTier: 'subprime',
     targetPayment: 450,
     paymentTolerance: 50,
+    };
   });
 
   const [results, setResults] = useState<{ bestDeal: DealCandidate | null; allCandidates: DealCandidate[] } | null>(null);
@@ -30,11 +34,17 @@ export default function RehashOptimizer() {
     setResults(rehashResults);
   };
 
+  // Hydrate from location state when it changes
   useEffect(() => {
-    // Auto-run on load with demo data
-    handleFindLenders();
-  }, []);
+    if (location.state?.dealInput) {
+      setDealInput(location.state.dealInput);
+    }
+  }, [location.state?.dealInput]);
 
+  // Recompute whenever dealInput changes
+  useEffect(() => {
+    handleFindLenders();
+  }, [dealInput]);
   const handleInputChange = (field: keyof DealInput, value: any) => {
     setDealInput(prev => ({ ...prev, [field]: value }));
   };
