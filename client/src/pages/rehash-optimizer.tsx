@@ -18,6 +18,7 @@ export default function RehashOptimizer() {
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
+    state: 'TX',
     tradeAllowance: 0,
     tradePayoff: 0,
     backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
@@ -124,6 +125,31 @@ export default function RehashOptimizer() {
               </div>
 
               <div>
+                <label className="mb-1 block text-sm text-slate-300">State</label>
+                <select
+                  value={dealInput.state || 'TX'}
+                  onChange={e => handleInputChange('state', e.target.value)}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                >
+                  <option value="TX">Texas</option>
+                  <option value="CA">California</option>
+                  <option value="FL">Florida</option>
+                  <option value="AZ">Arizona</option>
+                  <option value="NV">Nevada</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">Vehicle Mileage</label>
+                <input
+                  type="number"
+                  value={dealInput.vehicleMileage}
+                  onChange={e => handleInputChange('vehicleMileage', Number(e.target.value))}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
                 <label className="mb-1 block text-sm text-slate-300">Target Payment</label>
                 <input
                   type="number"
@@ -199,6 +225,20 @@ export default function RehashOptimizer() {
                         </div>
                       </div>
                     </div>
+                    {/* Deal Insights */}
+                    {results.bestDeal.adjustments && results.bestDeal.adjustments.length > 0 && (
+                      <div className="mt-4 border-t border-green-700 pt-3">
+                        <div className="text-sm font-semibold text-green-400 mb-2">Deal Insights</div>
+                        <ul className="text-xs text-slate-300 space-y-1">
+                          {results.bestDeal.adjustments.map((adj, i) => (
+                            <li key={i} className="flex items-start">
+                              <span className="text-green-500 mr-2">-</span>
+                              {adj}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
                   {/* All Options Table */}
