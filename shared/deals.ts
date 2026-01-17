@@ -16,6 +16,7 @@ export interface DealInput {
   taxRate: number;            // e.g., 0.09 for 9%
   fees: number;               // Doc + DMV + misc dealer fees
   downPayment: number;        // Customer cash down
+  state?: string;             // State code for tax credit calculation (e.g., 'TX', 'CA')
   tradeAllowance: number;     // Trade-in value (if any)
   tradePayoff: number;        // Payoff on trade (if any)
   backendProducts: BackendProducts;

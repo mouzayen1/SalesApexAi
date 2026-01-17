@@ -9,6 +9,8 @@ export interface LenderTierPricing {
   baseAdvancePercent: number;
   maxAdvancePercent: number;
   maxLtvPercent: number;
+  buyRate: number;      // Base rate lender charges
+  maxMarkup: number;    // Max dealer markup allowed
 }
 
 export interface LenderConfig {
@@ -23,6 +25,7 @@ export interface LenderConfig {
   maxVehicleAgeYears: number;
   maxMiles: number;
   lenderFeePercent: number;
+  dealerReserveSplit: number;  // e.g., 0.7 = dealer gets 70% of reserve
   pricingGrid: LenderTierPricing[];
   validateDeal: (deal: DealInput, amountFinanced: number) => { isValid: boolean; reasons: string[] };
 }
@@ -40,6 +43,7 @@ export const LENDERS: LenderConfig[] = [
     maxVehicleAgeYears: 12,
     maxMiles: 150000,
     lenderFeePercent: 3.0,
+    dealerReserveSplit: 0.70,
     pricingGrid: [
       {
         creditTier: 'deep_subprime',
@@ -49,6 +53,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 115,
         maxAdvancePercent: 145,
         maxLtvPercent: 145,
+        buyRate: 20,
+        maxMarkup: 3,
       },
       {
         creditTier: 'subprime',
@@ -58,6 +64,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 115,
         maxAdvancePercent: 140,
         maxLtvPercent: 140,
+        buyRate: 16,
+        maxMarkup: 3,
       },
       {
         creditTier: 'near_prime',
@@ -67,6 +75,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 110,
         maxAdvancePercent: 130,
         maxLtvPercent: 130,
+        buyRate: 10,
+        maxMarkup: 3,
       },
       {
         creditTier: 'prime',
@@ -76,6 +86,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 105,
         maxAdvancePercent: 120,
         maxLtvPercent: 120,
+        buyRate: 6,
+        maxMarkup: 2.5,
       },
     ],
     validateDeal: (deal, amountFinanced) => {
@@ -99,6 +111,7 @@ export const LENDERS: LenderConfig[] = [
     maxVehicleAgeYears: 15,
     maxMiles: 180000,
     lenderFeePercent: 2.5,
+    dealerReserveSplit: 0.75,
     pricingGrid: [
       {
         creditTier: 'deep_subprime',
@@ -108,6 +121,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 120,
         maxAdvancePercent: 150,
         maxLtvPercent: 150,
+        buyRate: 22,
+        maxMarkup: 3,
       },
       {
         creditTier: 'subprime',
@@ -117,6 +132,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 115,
         maxAdvancePercent: 145,
         maxLtvPercent: 145,
+        buyRate: 18,
+        maxMarkup: 3,
       },
       {
         creditTier: 'near_prime',
@@ -126,6 +143,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 110,
         maxAdvancePercent: 135,
         maxLtvPercent: 135,
+        buyRate: 12,
+        maxMarkup: 3,
       },
       {
         creditTier: 'prime',
@@ -135,6 +154,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 105,
         maxAdvancePercent: 125,
         maxLtvPercent: 125,
+        buyRate: 7,
+        maxMarkup: 2.5,
       },
     ],
     validateDeal: (deal, amountFinanced) => {
@@ -156,6 +177,7 @@ export const LENDERS: LenderConfig[] = [
     maxVehicleAgeYears: 10,
     maxMiles: 140000,
     lenderFeePercent: 2.0,
+    dealerReserveSplit: 0.65,
     pricingGrid: [
       {
         creditTier: 'deep_subprime',
@@ -165,6 +187,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 115,
         maxAdvancePercent: 140,
         maxLtvPercent: 140,
+        buyRate: 21,
+        maxMarkup: 3,
       },
       {
         creditTier: 'subprime',
@@ -174,6 +198,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 112,
         maxAdvancePercent: 135,
         maxLtvPercent: 135,
+        buyRate: 17,
+        maxMarkup: 3,
       },
       {
         creditTier: 'near_prime',
@@ -183,6 +209,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 108,
         maxAdvancePercent: 125,
         maxLtvPercent: 125,
+        buyRate: 11,
+        maxMarkup: 3,
       },
       {
         creditTier: 'prime',
@@ -192,6 +220,8 @@ export const LENDERS: LenderConfig[] = [
         baseAdvancePercent: 105,
         maxAdvancePercent: 120,
         maxLtvPercent: 120,
+        buyRate: 7,
+        maxMarkup: 2.5,
       },
     ],
     validateDeal: (deal, amountFinanced) => {

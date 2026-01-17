@@ -1,6 +1,7 @@
 // shared/rehash.ts
 import type { DealInput, DealCandidate } from './deals';
-import { LENDERS, LenderConfig } from './lenders';
+import { LENDERS, LenderConfig, LenderTierPricing } from './lenders';
+import { getStateConfig } from './state-config';
 
 export interface RehashResult {
   bestDeal: DealCandidate | null;
@@ -19,17 +20,61 @@ export function calculateMonthlyPayment(
   return num / den;
 }
 
-function pickApr(lender: LenderConfig, creditTier: DealInput['customerCreditTier']): number | null {
-  const row = lender.pricingGrid.find(p => p.creditTier === creditTier);
-  if (!row) return null;
-  return (row.minApr + row.maxApr) / 2;
+interface AprResult {
+  buyRate: number;
+  contractRate: number;
+  markup: number;
+  dealerReserve: number;
+}
+
+function calculateAprAndReserve(
+  lender: LenderConfig,
+  tierRow: LenderTierPricing,
+  amountFinanced: number,
+  termMonths: number,
+  stateMaxApr: number | null
+): AprResult {
+  const buyRate = tierRow.buyRate;
+
+  // Calculate max allowed contract rate
+  let maxContract = buyRate + tierRow.maxMarkup;
+  if (stateMaxApr !== null) {
+    maxContract = Math.min(maxContract, stateMaxApr);
+  }
+
+  // Use midpoint of buy rate and max contract as default
+  const contractRate = (buyRate + maxContract) / 2;
+  const markup = contractRate - buyRate;
+
+  // Reserve calculation: only on markup portion
+  // Reserve = (markup / 12) * amountFinanced * term * dealer split
+  const monthlyMarkup = markup / 100 / 12;
+  const totalInterestOnMarkup = monthlyMarkup * amountFinanced * termMonths;
+  const dealerReserve = totalInterestOnMarkup * lender.dealerReserveSplit;
+
+  return {
+    buyRate,
+    contractRate,
+    markup,
+    dealerReserve,
+  };
 }
 
 function computeAmountFinanced(deal: DealInput, backendTotal: number): number {
-  const taxableBase = deal.vehiclePrice;
+  const stateConfig = getStateConfig(deal.state);
+
+  const tradeEquity = deal.tradeAllowance - deal.tradePayoff;
+
+  // Apply trade-in tax credit if state allows it
+  let taxableBase = deal.vehiclePrice;
+  if (stateConfig.tradeInTaxCredit && tradeEquity > 0) {
+    taxableBase = Math.max(0, deal.vehiclePrice - tradeEquity);
+  }
+
   const tax = taxableBase * deal.taxRate;
-  const gross = taxableBase + tax + deal.fees + backendTotal;
+  const gross = deal.vehiclePrice + tax + deal.fees + backendTotal;
   const totalDown = deal.downPayment + deal.tradeAllowance - deal.tradePayoff;
+
   return Math.max(gross - totalDown, 0);
 }
 
@@ -77,6 +122,7 @@ function estimateNetCheckAndProfit(
 
 export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): RehashResult {
   const candidates: DealCandidate[] = [];
+  const stateConfig = getStateConfig(deal.state);
 
   const activeLenders = lenders.filter(l => l.active);
 
@@ -87,9 +133,6 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
 
     const tierRow = lender.pricingGrid.find(p => p.creditTier === deal.customerCreditTier);
     if (!tierRow) return;
-
-    const apr = pickApr(lender, deal.customerCreditTier);
-    if (apr == null) return;
 
     const terms = lender.allowedTerms;
 
@@ -130,7 +173,16 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             deal.vehiclePrice > 0 ? (amountFinanced / deal.vehiclePrice) * 100 : 999;
           if (ltv > tierRow.maxLtvPercent) return;
 
-          const payment = calculateMonthlyPayment(amountFinanced, apr, term);
+          // Calculate APR and reserve using buy rate logic
+          const aprResult = calculateAprAndReserve(
+            lender,
+            tierRow,
+            amountFinanced,
+            term,
+            stateConfig.maxApr
+          );
+
+          const payment = calculateMonthlyPayment(amountFinanced, aprResult.contractRate, term);
 
           const {
             netCheckToDealer,
@@ -147,13 +199,26 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             scenario.value
           );
 
+          // Build improved insights/adjustments
           const adjustments: string[] = [];
-          adjustments.push(`${lender.name}: ${term} months @ ${apr.toFixed(2)}% APR`);
+          adjustments.push(
+            `${lender.name}: ${term}mo @ ${aprResult.contractRate.toFixed(2)}% (buy rate: ${aprResult.buyRate}%)`
+          );
+
+          if (stateConfig.tradeInTaxCredit && deal.tradeAllowance > deal.tradePayoff) {
+            adjustments.push(`Trade-in tax credit applied (${stateConfig.stateName})`);
+          }
+
+          if (finalLtv > 100) {
+            adjustments.push(`High LTV (${finalLtv.toFixed(0)}%) - GAP recommended`);
+          }
+
           if (down !== deal.downPayment) {
             adjustments.push(
-              `Increased down from $${deal.downPayment.toFixed(0)} to $${down.toFixed(0)}`
+              `Down increased from $${deal.downPayment.toFixed(0)} to $${down.toFixed(0)}`
             );
           }
+
           if (scenario.value === 0) {
             adjustments.push('No backend products to maximize net check');
           } else {
@@ -162,11 +227,15 @@ export function runRehash(deal: DealInput, lenders: LenderConfig[] = LENDERS): R
             );
           }
 
+          if (aprResult.dealerReserve > 0) {
+            adjustments.push(`Dealer reserve: $${aprResult.dealerReserve.toFixed(0)}`);
+          }
+
           const candidate: DealCandidate = {
             lenderId: lender.id,
             lenderName: lender.name,
             termMonths: term,
-            apr,
+            apr: aprResult.contractRate,
             amountFinanced,
             payment,
             netCheckToDealer,

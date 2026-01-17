@@ -18,6 +18,7 @@ export default function RehashOptimizer() {
     taxRate: 0.09,
     fees: 799,
     downPayment: 3000,
+    state: 'TX',
     tradeAllowance: 0,
     tradePayoff: 0,
     backendProducts: { gap: true, vsc: true, otherProductsTotal: 0 },
@@ -120,6 +121,21 @@ export default function RehashOptimizer() {
                   <option value="near_prime">Near Prime</option>
                   <option value="subprime">Subprime</option>
                   <option value="deep_subprime">Deep Subprime</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">State</label>
+                <select
+                  value={dealInput.state || 'TX'}
+                  onChange={e => handleInputChange('state', e.target.value)}
+                  className="w-full rounded bg-slate-700 px-3 py-2 text-white"
+                >
+                  <option value="TX">Texas</option>
+                  <option value="CA">California</option>
+                  <option value="FL">Florida</option>
+                  <option value="AZ">Arizona</option>
+                  <option value="NV">Nevada</option>
                 </select>
               </div>
 
