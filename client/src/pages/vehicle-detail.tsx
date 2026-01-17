@@ -63,7 +63,7 @@ export function VehicleDetailPage() {
     };
             
     // Navigate to rehash optimizer with deal input
-    navigate('/rehash', { state: { dealInput } });
+    navigate('/rehash-optimizer', { state: { dealInput } });
   };
 
   return (
